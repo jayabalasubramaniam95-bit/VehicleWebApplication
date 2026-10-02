@@ -12,8 +12,7 @@ public static class TestDatabase
 
         var dbContext = scope.ServiceProvider
             .GetRequiredService<ApplicationDbContext>();
-
         await dbContext.Database.EnsureDeletedAsync();
-        await dbContext.Database.MigrateAsync();
+        await dbContext.Database.EnsureCreatedAsync();
     }
 }

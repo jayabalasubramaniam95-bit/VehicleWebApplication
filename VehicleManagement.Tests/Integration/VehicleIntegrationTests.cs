@@ -5,11 +5,55 @@ using VehicleManagement.Data;
 using VehicleManagement.Models;
 using VehicleManagement.Services;
 using VehicleManagement.ViewModels;
+using System.Net.Http.Headers;
+using AngleSharp.Html.Parser;
+using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace VehicleManagement.Tests.Integration;
 
 public class VehicleIntegrationTests : IntegrationTestBase
 {
+
+    private async Task<(HttpClient Client, string Token)> CreateClientWithAntiForgeryToken()
+{
+     var client = Factory.CreateClient();
+
+    var response = await client.GetAsync("/Vehicles/Create");
+
+    response.EnsureSuccessStatusCode();
+
+    var html = await response.Content.ReadAsStringAsync();
+
+    var parser = new HtmlParser();
+    var document = await parser.ParseDocumentAsync(html);
+
+    var token = document
+        .QuerySelector("input[name='__RequestVerificationToken']")
+        ?.GetAttribute("value");
+
+    Assert.False(
+        string.IsNullOrWhiteSpace(token),
+        "Anti-forgery token was not found on the Create page.");
+
+    return (client, token!);
+}
+
+[Fact]
+public async Task CreateVehicle_Get_ReturnsCreatePage()
+{
+    // Arrange
+    using var client = Factory.CreateClient();
+
+    // Act
+    var response = await client.GetAsync("/Vehicles/Create");
+    var content = await response.Content.ReadAsStringAsync();
+
+    // Assert
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    Assert.Contains("Create", content);
+    Assert.Contains("OwnerName", content);
+}
+
     [Fact]
     public async Task Vehicles_Index_Returns_Success()
     {
@@ -461,4 +505,443 @@ public async Task CreateVehicle_AtCategoryBoundaries_AssignsCorrectCategory()
 
     Assert.Equal(heavyCategory.Id, heavyVehicle.CategoryId);
 }
+[Fact]
+public async Task CreateVehicle_Post_WithValidData_CreatesVehicle()
+{
+    // Arrange
+   using var client = Factory.CreateClient(
+    new WebApplicationFactoryClientOptions
+    {
+        AllowAutoRedirect = false
+    });
+
+    // Get the Create page first.
+    var getResponse = await client.GetAsync("/Vehicles/Create");
+
+    Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+
+    var html = await getResponse.Content.ReadAsStringAsync();
+
+    // Find the anti-forgery token.
+    var parser = new AngleSharp.Html.Parser.HtmlParser();
+    var document = await parser.ParseDocumentAsync(html);
+
+    var token = document
+        .QuerySelector("input[name='__RequestVerificationToken']")
+        ?.GetAttribute("value");
+
+    Assert.False(
+        string.IsNullOrWhiteSpace(token),
+        "Create page did not contain an anti-forgery token.");
+
+    var dbContext = Scope.ServiceProvider
+        .GetRequiredService<ApplicationDbContext>();
+
+    var manufacturer = await dbContext.Manufacturers
+        .FirstAsync(m => !m.IsDeleted);
+
+    var formData = new Dictionary<string, string>
+    {
+        ["__RequestVerificationToken"] = token!,
+        ["OwnerName"] = "HTTP Integration Vehicle",
+        ["ManufacturerId"] = manufacturer.Id.ToString(),
+        ["YearOfManufacture"] = "2020",
+        ["Weight"] = "1000"
+    };
+
+    using var form = new FormUrlEncodedContent(formData);
+
+    // Act
+    var response = await client.PostAsync(
+        "/Vehicles/Create",
+        form);
+
+    // Diagnostic information
+    var responseBody = await response.Content.ReadAsStringAsync();
+
+    Console.WriteLine($"POST Status: {response.StatusCode}");
+    Console.WriteLine($"POST Response Length: {responseBody.Length}");
+
+    // Assert
+    Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+
+    var vehicle = await dbContext.Vehicles
+        .AsNoTracking()
+        .FirstOrDefaultAsync(
+            v => v.OwnerName == "HTTP Integration Vehicle");
+
+    Assert.NotNull(vehicle);
+    Assert.Equal(1000, vehicle.Weight);
+    Assert.False(vehicle.IsDeleted);
+}
+[Fact]
+public async Task EditVehicle_Get_ReturnsEditPage()
+{
+    // Arrange
+    var dbContext = Scope.ServiceProvider
+        .GetRequiredService<ApplicationDbContext>();
+
+    var manufacturer = await dbContext.Manufacturers
+        .FirstAsync(m => !m.IsDeleted);
+
+    var category = await dbContext.VehicleCategories
+        .FirstAsync(c => !c.IsDeleted && c.Name == "Medium");
+
+    var vehicle = new Vehicle
+    {
+        OwnerName = "Edit Page Integration Test",
+        ManufacturerId = manufacturer.Id,
+        YearOfManufacture = 2020,
+        Weight = 1000,
+        CategoryId = category.Id,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow,
+        IsDeleted = false
+    };
+
+    dbContext.Vehicles.Add(vehicle);
+    await dbContext.SaveChangesAsync();
+
+    using var client = Factory.CreateClient();
+
+    // Act
+    var response = await client.GetAsync(
+        $"/Vehicles/Edit/{vehicle.Id}");
+
+    var content = await response.Content.ReadAsStringAsync();
+
+    // Assert
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    Assert.Contains("Edit Page Integration Test", content);
+}
+[Fact]
+public async Task EditVehicle_Get_WhenVehicleDoesNotExist_ReturnsNotFound()
+{
+    // Arrange
+    using var client = Factory.CreateClient();
+
+    const int nonExistingVehicleId = 999999;
+
+    // Act
+    var response = await client.GetAsync(
+        $"/Vehicles/Edit/{nonExistingVehicleId}");
+
+    // Assert
+    Assert.Equal(
+        HttpStatusCode.NotFound,
+        response.StatusCode);
+}
+[Fact]
+public async Task EditVehicle_Post_WhenWeightChanges_UpdatesVehicleAndCategory()
+{
+    // Arrange
+    var dbContext = Scope.ServiceProvider
+        .GetRequiredService<ApplicationDbContext>();
+
+    var manufacturer = await dbContext.Manufacturers
+        .FirstAsync(m => !m.IsDeleted);
+
+    var mediumCategory = await dbContext.VehicleCategories
+        .FirstAsync(c => !c.IsDeleted && c.Name == "Medium");
+
+    var heavyCategory = await dbContext.VehicleCategories
+        .FirstAsync(c => !c.IsDeleted && c.Name == "Heavy");
+
+    var vehicle = new Vehicle
+    {
+        OwnerName = "HTTP Edit Integration Test",
+        ManufacturerId = manufacturer.Id,
+        YearOfManufacture = 2020,
+        Weight = 1000,
+        CategoryId = mediumCategory.Id,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow,
+        IsDeleted = false
+    };
+
+    dbContext.Vehicles.Add(vehicle);
+    await dbContext.SaveChangesAsync();
+
+    using var client = Factory.CreateClient(
+    new WebApplicationFactoryClientOptions
+    {
+        AllowAutoRedirect = false
+    });
+
+    // First GET the Edit page to obtain the anti-forgery token.
+    var getResponse = await client.GetAsync(
+        $"/Vehicles/Edit/{vehicle.Id}");
+
+    Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+
+    var html = await getResponse.Content.ReadAsStringAsync();
+
+    var parser = new AngleSharp.Html.Parser.HtmlParser();
+    var document = await parser.ParseDocumentAsync(html);
+
+    var token = document
+        .QuerySelector("input[name='__RequestVerificationToken']")
+        ?.GetAttribute("value");
+
+    Assert.False(
+        string.IsNullOrWhiteSpace(token),
+        "Edit page did not contain an anti-forgery token.");
+
+    // Prepare edited vehicle.
+    var formData = new Dictionary<string, string>
+    {
+        ["__RequestVerificationToken"] = token!,
+        ["Id"] = vehicle.Id.ToString(),
+        ["OwnerName"] = vehicle.OwnerName,
+        ["ManufacturerId"] = manufacturer.Id.ToString(),
+        ["YearOfManufacture"] = "2020",
+        ["Weight"] = "3000"
+    };
+
+    using var form = new FormUrlEncodedContent(formData);
+
+    // Act
+    var response = await client.PostAsync(
+        "/Vehicles/Edit",
+        form);
+
+    // Assert HTTP response
+    Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+
+    // Verify database
+    var updatedVehicle = await dbContext.Vehicles
+        .AsNoTracking()
+        .FirstAsync(v => v.Id == vehicle.Id);
+
+    Assert.Equal(3000, updatedVehicle.Weight);
+    Assert.Equal(heavyCategory.Id, updatedVehicle.CategoryId);
+}
+[Fact]
+public async Task DeleteVehicle_Post_SoftDeletesVehicle()
+{
+    // Arrange
+    var dbContext = Scope.ServiceProvider
+        .GetRequiredService<ApplicationDbContext>();
+
+    var manufacturer = await dbContext.Manufacturers
+        .FirstAsync(m => !m.IsDeleted);
+
+    var mediumCategory = await dbContext.VehicleCategories
+        .FirstAsync(c => !c.IsDeleted && c.Name == "Medium");
+
+    var vehicle = new Vehicle
+    {
+        OwnerName = "HTTP Delete Integration Test",
+        ManufacturerId = manufacturer.Id,
+        YearOfManufacture = 2020,
+        Weight = 1000,
+        CategoryId = mediumCategory.Id,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow,
+        IsDeleted = false
+    };
+
+    dbContext.Vehicles.Add(vehicle);
+    await dbContext.SaveChangesAsync();
+
+    var vehicleId = vehicle.Id;
+
+    using var client = Factory.CreateClient(
+    new WebApplicationFactoryClientOptions
+    {
+        AllowAutoRedirect = false
+    });
+
+    // Get a page that contains the anti-forgery token.
+    var getResponse = await client.GetAsync("/Vehicles/Index");
+
+    Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+
+    var html = await getResponse.Content.ReadAsStringAsync();
+
+    var parser = new AngleSharp.Html.Parser.HtmlParser();
+    var document = await parser.ParseDocumentAsync(html);
+
+    var token = document
+        .QuerySelector("input[name='__RequestVerificationToken']")
+        ?.GetAttribute("value");
+
+    Assert.False(
+        string.IsNullOrWhiteSpace(token),
+        "Index page did not contain an anti-forgery token.");
+
+    var formData = new Dictionary<string, string>
+    {
+        ["__RequestVerificationToken"] = token!,
+        ["id"] = vehicleId.ToString()
+    };
+
+    using var form = new FormUrlEncodedContent(formData);
+
+    // Act
+    var response = await client.PostAsync(
+        "/Vehicles/Delete",
+        form);
+
+    // Assert
+    Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+
+    var deletedVehicle = await dbContext.Vehicles
+        .AsNoTracking()
+        .FirstAsync(v => v.Id == vehicleId);
+
+    Assert.True(deletedVehicle.IsDeleted);
+}
+[Fact]
+public async Task DeleteVehicle_Post_WhenVehicleDoesNotExist_RedirectsWithError()
+{
+    // Arrange
+    using var client = Factory.CreateClient(
+        new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+    var getResponse = await client.GetAsync("/Vehicles/Index");
+
+    Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+
+    var html = await getResponse.Content.ReadAsStringAsync();
+
+    var parser = new AngleSharp.Html.Parser.HtmlParser();
+    var document = await parser.ParseDocumentAsync(html);
+
+    var token = document
+        .QuerySelector("input[name='__RequestVerificationToken']")
+        ?.GetAttribute("value");
+
+    Assert.False(
+        string.IsNullOrWhiteSpace(token),
+        "Index page did not contain an anti-forgery token.");
+
+    var formData = new Dictionary<string, string>
+    {
+        ["__RequestVerificationToken"] = token!,
+        ["id"] = "999999"
+    };
+
+    using var form = new FormUrlEncodedContent(formData);
+
+    // Act
+    var response = await client.PostAsync(
+        "/Vehicles/Delete",
+        form);
+
+    // Assert
+    Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+}
+[Fact]
+public async Task Vehicles_Index_WithSearch_ReturnsMatchingVehicle()
+{
+    // Arrange
+    var dbContext = Scope.ServiceProvider
+        .GetRequiredService<ApplicationDbContext>();
+
+    var manufacturer = await dbContext.Manufacturers
+        .FirstAsync(m => !m.IsDeleted);
+
+    var category = await dbContext.VehicleCategories
+        .FirstAsync(c => !c.IsDeleted && c.Name == "Medium");
+
+    var matchingVehicle = new Vehicle
+    {
+        OwnerName = "Search Matching Vehicle",
+        ManufacturerId = manufacturer.Id,
+        YearOfManufacture = 2020,
+        Weight = 1000,
+        CategoryId = category.Id,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow,
+        IsDeleted = false
+    };
+
+    var otherVehicle = new Vehicle
+    {
+        OwnerName = "Different Vehicle",
+        ManufacturerId = manufacturer.Id,
+        YearOfManufacture = 2021,
+        Weight = 1000,
+        CategoryId = category.Id,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow,
+        IsDeleted = false
+    };
+
+    dbContext.Vehicles.AddRange(
+        matchingVehicle,
+        otherVehicle);
+
+    await dbContext.SaveChangesAsync();
+
+    using var client = Factory.CreateClient();
+
+    // Act
+    var response = await client.GetAsync(
+        "/Vehicles/Index?search=Search%20Matching");
+
+    var html = await response.Content.ReadAsStringAsync();
+
+    // Assert
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    Assert.Contains(
+        "Search Matching Vehicle",
+        html);
+
+    Assert.DoesNotContain(
+        "Different Vehicle",
+        html);
+}
+
+[Fact]
+public async Task Vehicles_Index_Page2_ReturnsSecondPageOfVehicles()
+{
+    // Arrange
+    var dbContext = Scope.ServiceProvider
+        .GetRequiredService<ApplicationDbContext>();
+
+    var manufacturer = await dbContext.Manufacturers
+        .FirstAsync(m => !m.IsDeleted);
+
+    var category = await dbContext.VehicleCategories
+        .FirstAsync(c => !c.IsDeleted && c.Name == "Medium");
+
+    for (var i = 1; i <= 11; i++)
+    {
+        dbContext.Vehicles.Add(new Vehicle
+        {
+            OwnerName = $"Pagination Vehicle {i:00}",
+            ManufacturerId = manufacturer.Id,
+            YearOfManufacture = 2020,
+            Weight = 1000,
+            CategoryId = category.Id,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            IsDeleted = false
+        });
+    }
+
+    await dbContext.SaveChangesAsync();
+
+    using var client = Factory.CreateClient();
+
+    // Act
+    var response = await client.GetAsync(
+        "/Vehicles/Index?page=2");
+
+    var html = await response.Content.ReadAsStringAsync();
+
+    // Assert
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    Assert.Contains("Pagination Vehicle 11", html);
+
+    Assert.DoesNotContain("Pagination Vehicle 01", html);
+}
+
 }

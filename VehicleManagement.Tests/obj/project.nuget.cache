@@ -1,9 +1,10 @@
 {
   "version": 2,
-  "dgSpecHash": "e/tVTjTxZwc=",
+  "dgSpecHash": "Z1Vw81sBp7c=",
   "success": true,
   "projectFilePath": "D:\\WebApp\\VehicleManagement\\VehicleManagement.Tests\\VehicleManagement.Tests.csproj",
   "expectedPackageFiles": [
+    "C:\\Users\\Admin\\.nuget\\packages\\anglesharp\\1.8.3\\anglesharp.1.8.3.nupkg.sha512",
     "C:\\Users\\Admin\\.nuget\\packages\\azure.core\\1.50.0\\azure.core.1.50.0.nupkg.sha512",
     "C:\\Users\\Admin\\.nuget\\packages\\azure.identity\\1.17.1\\azure.identity.1.17.1.nupkg.sha512",
     "C:\\Users\\Admin\\.nuget\\packages\\coverlet.collector\\6.0.4\\coverlet.collector.6.0.4.nupkg.sha512",

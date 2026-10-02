@@ -33,6 +33,6 @@ public abstract class IntegrationTestBase : IAsyncLifetime
         .GetRequiredService<ApplicationDbContext>();
 
     await dbContext.Database.EnsureDeletedAsync();
-    await dbContext.Database.MigrateAsync();
+    await dbContext.Database.EnsureCreatedAsync();
 }
 }

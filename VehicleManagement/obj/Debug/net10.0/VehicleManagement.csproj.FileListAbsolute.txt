@@ -237,8 +237,8 @@ d:\VehicleManagement\VehicleManagement\obj\Debug\net10.0\ref\VehicleManagement.d
 D:\WebApp\VehicleManagement\VehicleManagement\bin\Debug\net10.0\appsettings.Development.json
 D:\WebApp\VehicleManagement\VehicleManagement\bin\Debug\net10.0\appsettings.json
 D:\WebApp\VehicleManagement\VehicleManagement\bin\Debug\net10.0\appsettings.Testing.json
-D:\WebApp\VehicleManagement\VehicleManagement\bin\Debug\net10.0\VehicleManagement.staticwebassets.endpoints.json
 D:\WebApp\VehicleManagement\VehicleManagement\bin\Debug\net10.0\VehicleManagement.staticwebassets.runtime.json
+D:\WebApp\VehicleManagement\VehicleManagement\bin\Debug\net10.0\VehicleManagement.staticwebassets.endpoints.json
 D:\WebApp\VehicleManagement\VehicleManagement\bin\Debug\net10.0\VehicleManagement.exe
 D:\WebApp\VehicleManagement\VehicleManagement\bin\Debug\net10.0\VehicleManagement.deps.json
 D:\WebApp\VehicleManagement\VehicleManagement\bin\Debug\net10.0\VehicleManagement.runtimeconfig.json

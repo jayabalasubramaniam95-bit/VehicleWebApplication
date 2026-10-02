@@ -22,14 +22,6 @@ public class VehicleApiFactory : WebApplicationFactory<Program>
 
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlite(_connection));
-
-            using var serviceProvider = services.BuildServiceProvider();
-            using var scope = serviceProvider.CreateScope();
-
-            var db = scope.ServiceProvider
-                .GetRequiredService<ApplicationDbContext>();
-
-            db.Database.EnsureCreated();
         });
     }
 

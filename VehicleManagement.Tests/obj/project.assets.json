@@ -2,6 +2,19 @@
   "version": 4,
   "targets": {
     "net10.0": {
+      "AngleSharp/1.8.3": {
+        "type": "package",
+        "compile": {
+          "lib/net10.0/AngleSharp.dll": {
+            "related": ".xml"
+          }
+        },
+        "runtime": {
+          "lib/net10.0/AngleSharp.dll": {
+            "related": ".xml"
+          }
+        }
+      },
       "Azure.Core/1.50.0": {
         "type": "package",
         "dependencies": {
@@ -1845,6 +1858,29 @@
     }
   },
   "libraries": {
+    "AngleSharp/1.8.3": {
+      "sha512": "IiXdbBHzeKRUDayOFT/5nAqkY7Tqbtzr9dqoWrsfseLRs2r1j94qP8MmKnfs9aX+WHucmlmX8xq9QosIUJ/sbA==",
+      "type": "package",
+      "path": "anglesharp/1.8.3",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "README.md",
+        "anglesharp.1.8.3.nupkg.sha512",
+        "anglesharp.nuspec",
+        "lib/net10.0/AngleSharp.dll",
+        "lib/net10.0/AngleSharp.xml",
+        "lib/net462/AngleSharp.dll",
+        "lib/net462/AngleSharp.xml",
+        "lib/net472/AngleSharp.dll",
+        "lib/net472/AngleSharp.xml",
+        "lib/net8.0/AngleSharp.dll",
+        "lib/net8.0/AngleSharp.xml",
+        "lib/netstandard2.0/AngleSharp.dll",
+        "lib/netstandard2.0/AngleSharp.xml",
+        "logo.png"
+      ]
+    },
     "Azure.Core/1.50.0": {
       "sha512": "GBNKZEhdIbTXxedvD3R7I/yDVFX9jJJEz02kCziFSJxspSQ5RMHc3GktulJ1s7+ffXaXD7kMgrtdQTaggyInLw==",
       "type": "package",
@@ -4166,6 +4202,7 @@
   },
   "projectFileDependencyGroups": {
     "net10.0": [
+      "AngleSharp >= 1.8.3",
       "Microsoft.AspNetCore.Mvc.Testing >= 10.0.12",
       "Microsoft.Data.Sqlite >= 10.0.12",
       "Microsoft.EntityFrameworkCore.Sqlite >= 10.0.12",
@@ -4225,6 +4262,10 @@
         "framework": "net10.0",
         "targetAlias": "net10.0",
         "dependencies": {
+          "AngleSharp": {
+            "target": "Package",
+            "version": "[1.8.3, )"
+          },
           "Microsoft.AspNetCore.Mvc.Testing": {
             "target": "Package",
             "version": "[10.0.12, )"

@@ -1,15 +1,55 @@
 using System.Net;
-using System.Net.Http.Headers;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using VehicleManagement.Data;
 using VehicleManagement.Models;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace VehicleManagement.Tests.Integration;
 
 public class ManufacturerIntegrationTests : IntegrationTestBase
 {
+    private const int NonExistingId = 999999;
+
+    #region Helpers
+
+    private HttpClient CreateNoRedirectClient() =>
+        Factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+    private static async Task<Manufacturer> AddManufacturerAsync(ApplicationDbContext db, string name)
+    {
+        var manufacturer = new Manufacturer
+        {
+            Name = name,
+            IsDefault = false,
+            IsDeleted = false,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        db.Manufacturers.Add(manufacturer);
+        await db.SaveChangesAsync();
+
+        return manufacturer;
+    }
+
+    private static async Task<HttpResponseMessage> PostDeleteAsync(HttpClient client, int id)
+    {
+        var token = await AntiForgeryHelper.GetTokenAsync(client);
+
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"/Manufacturers/Delete/{id}");
+        request.Headers.Add("RequestVerificationToken", token);
+
+        return await client.SendAsync(request);
+    }
+
+    #endregion
+
+    #region Pages (GET)
+
     [Fact]
     public async Task Manufacturers_Index_Returns_Success()
     {
@@ -33,8 +73,8 @@ public class ManufacturerIntegrationTests : IntegrationTestBase
     [Fact]
     public async Task Manufacturer_Details_WhenManufacturerExists_Returns_Success()
     {
+        // Arrange
         using var client = Factory.CreateClient();
-
         using var scope = Factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -42,9 +82,10 @@ public class ManufacturerIntegrationTests : IntegrationTestBase
             .AsNoTracking()
             .FirstAsync(m => !m.IsDeleted);
 
-        var response = await client.GetAsync(
-            $"/Manufacturers/Details/{manufacturer.Id}");
+        // Act
+        var response = await client.GetAsync($"/Manufacturers/Details/{manufacturer.Id}");
 
+        // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
@@ -53,67 +94,79 @@ public class ManufacturerIntegrationTests : IntegrationTestBase
     {
         using var client = Factory.CreateClient();
 
-        var response = await client.GetAsync("/Manufacturers/Details/999999");
+        var response = await client.GetAsync($"/Manufacturers/Details/{NonExistingId}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     [Fact]
-public async Task Manufacturer_Edit_WhenManufacturerExists_Returns_Success()
-{
-    using var client = Factory.CreateClient();
-
-    using var scope = Factory.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-    var manufacturer = new Manufacturer
+    public async Task Manufacturer_Edit_WhenManufacturerExists_Returns_Success()
     {
-        Name = "Test Edit Manufacturer",
-        IsDefault = false,
-        IsDeleted = false,
-        CreatedAt = DateTime.UtcNow,
-        UpdatedAt = DateTime.UtcNow
-    };
+        // Arrange
+        using var client = Factory.CreateClient();
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-    db.Manufacturers.Add(manufacturer);
-    await db.SaveChangesAsync();
+        var manufacturer = await AddManufacturerAsync(db, "Test Edit Manufacturer");
 
-    var response = await client.GetAsync(
-        $"/Manufacturers/Edit/{manufacturer.Id}");
+        // Act
+        var response = await client.GetAsync($"/Manufacturers/Edit/{manufacturer.Id}");
 
-    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-}
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
 
     [Fact]
     public async Task Manufacturer_Edit_WhenManufacturerDoesNotExist_Returns_NotFound()
     {
         using var client = Factory.CreateClient();
 
-        var response = await client.GetAsync("/Manufacturers/Edit/999999");
+        var response = await client.GetAsync($"/Manufacturers/Edit/{NonExistingId}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    #endregion
+
+    #region Delete (POST)
+
     [Fact]
     public async Task Manufacturer_Delete_WhenManufacturerDoesNotExist_RedirectsWithError()
     {
-        using var client = Factory.CreateClient(
-            new WebApplicationFactoryClientOptions
-            {
-                AllowAutoRedirect = false
-            });
+        // Arrange
+        using var client = CreateNoRedirectClient();
 
-        var token = await AntiForgeryHelper.GetTokenAsync(client);
+        // Act
+        var response = await PostDeleteAsync(client, NonExistingId);
 
-        using var request = new HttpRequestMessage(
-            HttpMethod.Post,
-            "/Manufacturers/Delete/999999");
-
-        request.Headers.Add("RequestVerificationToken", token);
-
-        var response = await client.SendAsync(request);
-
+        // Assert
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal("/Manufacturers", response.Headers.Location?.OriginalString);
     }
+
+    [Fact]
+    public async Task Manufacturer_Delete_WhenManufacturerExists_SoftDeletesManufacturer()
+    {
+        // Arrange
+        using var client = CreateNoRedirectClient();
+        using var scope = Factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var manufacturer = await AddManufacturerAsync(db, "Integration Delete Manufacturer");
+
+        // Act
+        var response = await PostDeleteAsync(client, manufacturer.Id);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/Manufacturers", response.Headers.Location?.OriginalString);
+
+        var deletedManufacturer = await db.Manufacturers
+            .AsNoTracking()
+            .FirstAsync(m => m.Id == manufacturer.Id);
+
+        Assert.True(deletedManufacturer.IsDeleted);
+    }
+
+    #endregion
 }

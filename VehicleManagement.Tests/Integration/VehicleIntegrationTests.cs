@@ -1,67 +1,134 @@
 using System.Net;
+using AngleSharp.Html.Parser;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using VehicleManagement.Data;
 using VehicleManagement.Models;
 using VehicleManagement.Services;
 using VehicleManagement.ViewModels;
-using System.Net.Http.Headers;
-using AngleSharp.Html.Parser;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace VehicleManagement.Tests.Integration;
 
 public class VehicleIntegrationTests : IntegrationTestBase
 {
+    private const int NonExistingId = 999999;
 
-    private async Task<(HttpClient Client, string Token)> CreateClientWithAntiForgeryToken()
-{
-     var client = Factory.CreateClient();
+    private IVehicleService VehicleService =>
+        Scope.ServiceProvider.GetRequiredService<IVehicleService>();
 
-    var response = await client.GetAsync("/Vehicles/Create");
+    private ApplicationDbContext DbContext =>
+        Scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-    response.EnsureSuccessStatusCode();
+    #region Helpers
 
-    var html = await response.Content.ReadAsStringAsync();
+    private HttpClient CreateNoRedirectClient() =>
+        Factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
 
-    var parser = new HtmlParser();
-    var document = await parser.ParseDocumentAsync(html);
+    private static async Task<string> GetAntiForgeryTokenAsync(HttpClient client, string url)
+    {
+        var response = await client.GetAsync(url);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-    var token = document
-        .QuerySelector("input[name='__RequestVerificationToken']")
-        ?.GetAttribute("value");
+        var html = await response.Content.ReadAsStringAsync();
+        var document = await new HtmlParser().ParseDocumentAsync(html);
 
-    Assert.False(
-        string.IsNullOrWhiteSpace(token),
-        "Anti-forgery token was not found on the Create page.");
+        var token = document
+            .QuerySelector("input[name='__RequestVerificationToken']")
+            ?.GetAttribute("value");
 
-    return (client, token!);
-}
+        Assert.False(
+            string.IsNullOrWhiteSpace(token),
+            $"{url} did not contain an anti-forgery token.");
 
-[Fact]
-public async Task CreateVehicle_Get_ReturnsCreatePage()
-{
-    // Arrange
-    using var client = Factory.CreateClient();
+        return token!;
+    }
 
-    // Act
-    var response = await client.GetAsync("/Vehicles/Create");
-    var content = await response.Content.ReadAsStringAsync();
+    private Task<Manufacturer> GetManufacturerAsync() =>
+        DbContext.Manufacturers.FirstAsync(m => !m.IsDeleted);
 
-    // Assert
-    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    Assert.Contains("Create", content);
-    Assert.Contains("OwnerName", content);
-}
+    private Task<VehicleCategory> GetCategoryAsync(string name) =>
+        DbContext.VehicleCategories.FirstAsync(c => !c.IsDeleted && c.Name == name);
+
+    private static Vehicle NewVehicle(
+        string ownerName,
+        int manufacturerId,
+        int categoryId,
+        int year = 2020,
+        int weight = 1000) => new()
+    {
+        OwnerName = ownerName,
+        ManufacturerId = manufacturerId,
+        YearOfManufacture = year,
+        Weight = weight,
+        CategoryId = categoryId,
+        CreatedAt = DateTime.UtcNow,
+        UpdatedAt = DateTime.UtcNow,
+        IsDeleted = false
+    };
+
+    private async Task<Vehicle> AddVehicleAsync(
+        string ownerName,
+        string categoryName = "Medium",
+        int year = 2020,
+        int weight = 1000)
+    {
+        var manufacturer = await GetManufacturerAsync();
+        var category = await GetCategoryAsync(categoryName);
+
+        var vehicle = NewVehicle(ownerName, manufacturer.Id, category.Id, year, weight);
+
+        DbContext.Vehicles.Add(vehicle);
+        await DbContext.SaveChangesAsync();
+
+        return vehicle;
+    }
+
+    private Task<Vehicle> GetVehicleAsync(string ownerName) =>
+        DbContext.Vehicles.AsNoTracking().FirstAsync(v => v.OwnerName == ownerName);
+
+    private static VehicleFormViewModel NewForm(
+        string ownerName,
+        int manufacturerId,
+        int weight,
+        int? id = null) => new()
+    {
+        Id = id ?? 0,
+        OwnerName = ownerName,
+        ManufacturerId = manufacturerId,
+        YearOfManufacture = 2020,
+        Weight = weight
+    };
+
+    #endregion
+
+    #region Pages (GET)
+
+    [Fact]
+    public async Task CreateVehicle_Get_ReturnsCreatePage()
+    {
+        // Arrange
+        using var client = Factory.CreateClient();
+
+        // Act
+        var response = await client.GetAsync("/Vehicles/Create");
+        var content = await response.Content.ReadAsStringAsync();
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Create", content);
+        Assert.Contains("OwnerName", content);
+    }
 
     [Fact]
     public async Task Vehicles_Index_Returns_Success()
     {
         // Arrange
         await using var factory = new VehicleApiFactory();
-
         await TestDatabase.InitializeAsync(factory.Services);
-
         using var client = factory.CreateClient();
 
         // Act
@@ -76,9 +143,7 @@ public async Task CreateVehicle_Get_ReturnsCreatePage()
     {
         // Arrange
         await using var factory = new VehicleApiFactory();
-
         await TestDatabase.InitializeAsync(factory.Services);
-
         using var client = factory.CreateClient();
 
         // Act
@@ -91,857 +156,368 @@ public async Task CreateVehicle_Get_ReturnsCreatePage()
     }
 
     [Fact]
-    public async Task CreateVehicle_WithMediumWeight_AssignsMediumCategory()
+    public async Task EditVehicle_Get_ReturnsEditPage()
     {
         // Arrange
-
-        var service = Scope.ServiceProvider
-            .GetRequiredService<IVehicleService>();
-
-        var dbContext = Scope.ServiceProvider
-            .GetRequiredService<ApplicationDbContext>();
-
-        var manufacturer = await dbContext.Manufacturers
-            .FirstAsync(m => !m.IsDeleted);
-
-        var mediumCategory = await dbContext.VehicleCategories
-            .FirstAsync(c =>
-                !c.IsDeleted &&
-                c.Name == "Medium");
-
-        var model = new VehicleFormViewModel
-        {
-            OwnerName = "Integration Test Vehicle",
-            ManufacturerId = manufacturer.Id,
-            YearOfManufacture = 2020,
-            Weight = 1000
-        };
+        var vehicle = await AddVehicleAsync("Edit Page Integration Test");
+        using var client = Factory.CreateClient();
 
         // Act
-        var result = service.Create(model);
+        var response = await client.GetAsync($"/Vehicles/Edit/{vehicle.Id}");
+        var content = await response.Content.ReadAsStringAsync();
 
         // Assert
-        Assert.True(result.Success);
-
-        var vehicle = await dbContext.Vehicles
-            .AsNoTracking()
-            .FirstAsync(v => v.OwnerName == "Integration Test Vehicle");
-
-        Assert.Equal(mediumCategory.Id, vehicle.CategoryId);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Edit Page Integration Test", content);
     }
 
     [Fact]
-    public async Task CreateVehicle_WithLightWeight_AssignsLightCategory()
+    public async Task EditVehicle_Get_WhenVehicleDoesNotExist_ReturnsNotFound()
     {
         // Arrange
-
-        var service = Scope.ServiceProvider
-            .GetRequiredService<IVehicleService>();
-
-        var dbContext = Scope.ServiceProvider
-            .GetRequiredService<ApplicationDbContext>();
-
-        var manufacturer = await dbContext.Manufacturers
-            .FirstAsync(m => !m.IsDeleted);
-
-        var lightCategory = await dbContext.VehicleCategories
-            .FirstAsync(c => !c.IsDeleted && c.Name == "Light");
-
-        var model = new VehicleFormViewModel
-        {
-            OwnerName = "Light Integration Test",
-            ManufacturerId = manufacturer.Id,
-            YearOfManufacture = 2020,
-            Weight = 100
-        };
+        using var client = Factory.CreateClient();
 
         // Act
-        var result = service.Create(model);
+        var response = await client.GetAsync($"/Vehicles/Edit/{NonExistingId}");
 
         // Assert
-        Assert.True(result.Success);
-
-        var vehicle = await dbContext.Vehicles
-            .AsNoTracking()
-            .FirstAsync(v => v.OwnerName == "Light Integration Test");
-
-        Assert.Equal(lightCategory.Id, vehicle.CategoryId);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
-    [Fact]
-    public async Task CreateVehicle_WithHeavyWeight_AssignsHeavyCategory()
+
+    #endregion
+
+    #region Service: category assignment
+
+    [Theory]
+    [InlineData("Light", 100)]
+    [InlineData("Medium", 1000)]
+    [InlineData("Heavy", 3000)]
+    public async Task CreateVehicle_AssignsCategoryByWeight(string categoryName, int weight)
     {
         // Arrange
-
-        var service = Scope.ServiceProvider
-            .GetRequiredService<IVehicleService>();
-
-        var dbContext = Scope.ServiceProvider
-            .GetRequiredService<ApplicationDbContext>();
-
-        var manufacturer = await dbContext.Manufacturers
-            .FirstAsync(m => !m.IsDeleted);
-
-        var heavyCategory = await dbContext.VehicleCategories
-            .FirstAsync(c => !c.IsDeleted && c.Name == "Heavy");
-
-        var model = new VehicleFormViewModel
-        {
-            OwnerName = "Heavy Integration Test",
-            ManufacturerId = manufacturer.Id,
-            YearOfManufacture = 2020,
-            Weight = 3000
-        };
+        var ownerName = $"{categoryName} Integration Test";
+        var manufacturer = await GetManufacturerAsync();
+        var expectedCategory = await GetCategoryAsync(categoryName);
 
         // Act
-        var result = service.Create(model);
+        var result = VehicleService.Create(NewForm(ownerName, manufacturer.Id, weight));
 
         // Assert
         Assert.True(result.Success);
 
-        var vehicle = await dbContext.Vehicles
-            .AsNoTracking()
-            .FirstAsync(v => v.OwnerName == "Heavy Integration Test");
+        var vehicle = await GetVehicleAsync(ownerName);
+        Assert.Equal(expectedCategory.Id, vehicle.CategoryId);
+    }
 
-        Assert.Equal(heavyCategory.Id, vehicle.CategoryId);
+    [Fact]
+    public async Task CreateVehicle_AtCategoryBoundaries_AssignsCorrectCategory()
+    {
+        // Arrange
+        var manufacturer = await GetManufacturerAsync();
+        var mediumCategory = await GetCategoryAsync("Medium");
+        var heavyCategory = await GetCategoryAsync("Heavy");
+
+        // Act & Assert - 500 belongs to Medium.
+        var mediumResult = VehicleService.Create(
+            NewForm("Boundary Medium Test", manufacturer.Id, 500));
+
+        Assert.True(mediumResult.Success);
+        Assert.Equal(
+            mediumCategory.Id,
+            (await GetVehicleAsync("Boundary Medium Test")).CategoryId);
+
+        // Act & Assert - 2500 belongs to Heavy.
+        var heavyResult = VehicleService.Create(
+            NewForm("Boundary Heavy Test", manufacturer.Id, 2500));
+
+        Assert.True(heavyResult.Success);
+        Assert.Equal(
+            heavyCategory.Id,
+            (await GetVehicleAsync("Boundary Heavy Test")).CategoryId);
     }
 
     [Fact]
     public async Task UpdateVehicle_WhenWeightChanges_RecalculatesCategory()
     {
-        // Arrange       
+        // Arrange
+        var manufacturer = await GetManufacturerAsync();
+        var mediumCategory = await GetCategoryAsync("Medium");
+        var heavyCategory = await GetCategoryAsync("Heavy");
 
-        var service = Scope.ServiceProvider
-            .GetRequiredService<IVehicleService>();
-
-        var dbContext = Scope.ServiceProvider
-            .GetRequiredService<ApplicationDbContext>();
-
-        var manufacturer = await dbContext.Manufacturers
-            .FirstAsync(m => !m.IsDeleted);
-
-        var mediumCategory = await dbContext.VehicleCategories
-            .FirstAsync(c => !c.IsDeleted && c.Name == "Medium");
-
-        var heavyCategory = await dbContext.VehicleCategories
-            .FirstAsync(c => !c.IsDeleted && c.Name == "Heavy");
-
-        // Create a vehicle in the Medium range.
-        var createModel = new VehicleFormViewModel
-        {
-            OwnerName = "Category Update Integration Test",
-            ManufacturerId = manufacturer.Id,
-            YearOfManufacture = 2020,
-            Weight = 1000
-        };
-
-        var createResult = service.Create(createModel);
+        var createResult = VehicleService.Create(
+            NewForm("Category Update Integration Test", manufacturer.Id, 1000));
 
         Assert.True(createResult.Success);
 
-        var vehicle = await dbContext.Vehicles
+        var vehicle = await DbContext.Vehicles
             .FirstAsync(v => v.OwnerName == "Category Update Integration Test");
 
         Assert.Equal(mediumCategory.Id, vehicle.CategoryId);
 
         // Act - change the weight from Medium to Heavy.
-        var updateModel = new VehicleFormViewModel
-        {
-            Id = vehicle.Id,
-            OwnerName = vehicle.OwnerName,
-            ManufacturerId = manufacturer.Id,
-            YearOfManufacture = vehicle.YearOfManufacture,
-            Weight = 3000
-        };
-
-        var updateResult = service.Update(updateModel);
+        var updateResult = VehicleService.Update(
+            NewForm(vehicle.OwnerName, manufacturer.Id, 3000, vehicle.Id));
 
         // Assert
         Assert.True(updateResult.Success);
 
-        var updatedVehicle = await dbContext.Vehicles
+        var updatedVehicle = await DbContext.Vehicles
             .AsNoTracking()
             .FirstAsync(v => v.Id == vehicle.Id);
 
         Assert.Equal(3000, updatedVehicle.Weight);
         Assert.Equal(heavyCategory.Id, updatedVehicle.CategoryId);
     }
+
+    #endregion
+
+    #region Service: failures
+
     [Fact]
     public async Task CreateVehicle_WithInvalidManufacturer_Fails()
     {
         // Arrange
-        
-        var service = Scope.ServiceProvider
-            .GetRequiredService<IVehicleService>();
-
-        var dbContext = Scope.ServiceProvider
-            .GetRequiredService<ApplicationDbContext>();
-
-        var model = new VehicleFormViewModel
-        {
-            OwnerName = "Invalid Manufacturer Test",
-            ManufacturerId = 999999,
-            YearOfManufacture = 2020,
-            Weight = 1000
-        };
+        var model = NewForm("Invalid Manufacturer Test", NonExistingId, 1000);
 
         // Act
-        var result = service.Create(model);
+        var result = VehicleService.Create(model);
 
         // Assert
         Assert.False(result.Success);
-        Assert.Equal(
-            "The selected manufacturer does not exist.",
-            result.ErrorMessage);
-
-        var vehicleExists = await dbContext.Vehicles
-            .AnyAsync(v => v.OwnerName == "Invalid Manufacturer Test");
-
-        Assert.False(vehicleExists);
+        Assert.Equal("The selected manufacturer does not exist.", result.ErrorMessage);
+        Assert.False(await DbContext.Vehicles.AnyAsync(v => v.OwnerName == "Invalid Manufacturer Test"));
     }
 
     [Fact]
     public async Task CreateVehicle_WhenWeightIsOutsideAllCategories_Fails()
     {
-        // Arrange        
-        var service = Scope.ServiceProvider
-            .GetRequiredService<IVehicleService>();
-
-        var dbContext = Scope.ServiceProvider
-            .GetRequiredService<ApplicationDbContext>();
-
-        var manufacturer = await dbContext.Manufacturers
-            .FirstAsync(m => !m.IsDeleted);
-
-        // Use a weight that is outside the configured category ranges.
-        var model = new VehicleFormViewModel
-        {
-            OwnerName = "Invalid Weight Test",
-            ManufacturerId = manufacturer.Id,
-            YearOfManufacture = 2020,
-            Weight = -10
-        };
+        // Arrange - a weight outside the configured category ranges.
+        var manufacturer = await GetManufacturerAsync();
+        var model = NewForm("Invalid Weight Test", manufacturer.Id, -10);
 
         // Act
-        var result = service.Create(model);
+        var result = VehicleService.Create(model);
 
         // Assert
         Assert.False(result.Success);
         Assert.Equal(
             "No vehicle category covers this weight. Check the category ranges.",
             result.ErrorMessage);
-
-        var vehicleExists = await dbContext.Vehicles
-            .AnyAsync(v => v.OwnerName == "Invalid Weight Test");
-
-        Assert.False(vehicleExists);
+        Assert.False(await DbContext.Vehicles.AnyAsync(v => v.OwnerName == "Invalid Weight Test"));
     }
 
     [Fact]
-public async Task UpdateVehicle_WhenVehicleDoesNotExist_Fails()
-{
-    // Arrange
-    
-    var service = Scope.ServiceProvider
-        .GetRequiredService<IVehicleService>();
-
-    var dbContext = Scope.ServiceProvider
-        .GetRequiredService<ApplicationDbContext>();
-
-    var manufacturer = await dbContext.Manufacturers
-        .FirstAsync(m => !m.IsDeleted);
-
-    var model = new VehicleFormViewModel
+    public async Task UpdateVehicle_WhenVehicleDoesNotExist_Fails()
     {
-        Id = 999999,
-        OwnerName = "Non Existing Vehicle",
-        ManufacturerId = manufacturer.Id,
-        YearOfManufacture = 2020,
-        Weight = 1000
-    };
-
-    // Act
-    var result = service.Update(model);
-
-    // Assert
-    Assert.False(result.Success);
-    Assert.Equal(
-        "Vehicle could not be found.",
-        result.ErrorMessage);
-
-    var vehicleExists = await dbContext.Vehicles
-        .AnyAsync(v => v.Id == 999999);
-
-    Assert.False(vehicleExists);
-}
-[Fact]
-public async Task DeleteVehicle_WhenVehicleDoesNotExist_Fails()
-{
-    // Arrange
-    
-    var service = Scope.ServiceProvider
-        .GetRequiredService<IVehicleService>();
-
-    var dbContext = Scope.ServiceProvider
-        .GetRequiredService<ApplicationDbContext>();
-
-    const int nonExistingVehicleId = 999999;
-
-    // Act
-    var result = service.Delete(nonExistingVehicleId);
-
-    // Assert
-    Assert.False(result.Success);
-    Assert.Equal(
-        "Vehicle could not be found.",
-        result.ErrorMessage);
-
-    var vehicleExists = await dbContext.Vehicles
-        .AnyAsync(v => v.Id == nonExistingVehicleId);
-
-    Assert.False(vehicleExists);
-}
-[Fact]
-public async Task DeleteVehicle_SetsIsDeletedTrue()
-{
-    // Arrange
-        var service = Scope.ServiceProvider
-        .GetRequiredService<IVehicleService>();
-
-    var dbContext = Scope.ServiceProvider
-        .GetRequiredService<ApplicationDbContext>();
-
-    var manufacturer = await dbContext.Manufacturers
-        .FirstAsync(m => !m.IsDeleted);
-
-    var vehicle = new Vehicle
-    {
-        OwnerName = "Soft Delete Integration Test",
-        ManufacturerId = manufacturer.Id,
-        YearOfManufacture = 2020,
-        Weight = 1000,
-        CategoryId = await dbContext.VehicleCategories
-            .Where(c => !c.IsDeleted && c.Name == "Medium")
-            .Select(c => c.Id)
-            .FirstAsync(),
-        CreatedAt = DateTime.UtcNow,
-        UpdatedAt = DateTime.UtcNow,
-        IsDeleted = false
-    };
-
-    dbContext.Vehicles.Add(vehicle);
-    await dbContext.SaveChangesAsync();
-
-    var vehicleId = vehicle.Id;
-
-    // Act
-    var result = service.Delete(vehicleId);
-
-    // Assert
-    Assert.True(result.Success);
-
-    var deletedVehicle = await dbContext.Vehicles
-        .AsNoTracking()
-        .FirstAsync(v => v.Id == vehicleId);
-
-    Assert.True(deletedVehicle.IsDeleted);
-}
-[Fact]
-public async Task CreateVehicle_AtCategoryBoundaries_AssignsCorrectCategory()
-{
-    // Arrange
-    var service = Scope.ServiceProvider
-        .GetRequiredService<IVehicleService>();
-
-    var dbContext = Scope.ServiceProvider
-        .GetRequiredService<ApplicationDbContext>();
-
-    var manufacturer = await dbContext.Manufacturers
-        .FirstAsync(m => !m.IsDeleted);
-
-    var lightCategory = await dbContext.VehicleCategories
-        .FirstAsync(c => !c.IsDeleted && c.Name == "Light");
-
-    var mediumCategory = await dbContext.VehicleCategories
-        .FirstAsync(c => !c.IsDeleted && c.Name == "Medium");
-
-    var heavyCategory = await dbContext.VehicleCategories
-        .FirstAsync(c => !c.IsDeleted && c.Name == "Heavy");
-
-    // Act & Assert - 500 belongs to Medium.
-    var mediumModel = new VehicleFormViewModel
-    {
-        OwnerName = "Boundary Medium Test",
-        ManufacturerId = manufacturer.Id,
-        YearOfManufacture = 2020,
-        Weight = 500
-    };
-
-    var mediumResult = service.Create(mediumModel);
-
-    Assert.True(mediumResult.Success);
-
-    var mediumVehicle = await dbContext.Vehicles
-        .AsNoTracking()
-        .FirstAsync(v => v.OwnerName == "Boundary Medium Test");
-
-    Assert.Equal(mediumCategory.Id, mediumVehicle.CategoryId);
-
-    // Act & Assert - 2500 belongs to Heavy.
-    var heavyModel = new VehicleFormViewModel
-    {
-        OwnerName = "Boundary Heavy Test",
-        ManufacturerId = manufacturer.Id,
-        YearOfManufacture = 2020,
-        Weight = 2500
-    };
-
-    var heavyResult = service.Create(heavyModel);
-
-    Assert.True(heavyResult.Success);
-
-    var heavyVehicle = await dbContext.Vehicles
-        .AsNoTracking()
-        .FirstAsync(v => v.OwnerName == "Boundary Heavy Test");
-
-    Assert.Equal(heavyCategory.Id, heavyVehicle.CategoryId);
-}
-[Fact]
-public async Task CreateVehicle_Post_WithValidData_CreatesVehicle()
-{
-    // Arrange
-   using var client = Factory.CreateClient(
-    new WebApplicationFactoryClientOptions
-    {
-        AllowAutoRedirect = false
-    });
-
-    // Get the Create page first.
-    var getResponse = await client.GetAsync("/Vehicles/Create");
-
-    Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
-
-    var html = await getResponse.Content.ReadAsStringAsync();
-
-    // Find the anti-forgery token.
-    var parser = new AngleSharp.Html.Parser.HtmlParser();
-    var document = await parser.ParseDocumentAsync(html);
-
-    var token = document
-        .QuerySelector("input[name='__RequestVerificationToken']")
-        ?.GetAttribute("value");
-
-    Assert.False(
-        string.IsNullOrWhiteSpace(token),
-        "Create page did not contain an anti-forgery token.");
-
-    var dbContext = Scope.ServiceProvider
-        .GetRequiredService<ApplicationDbContext>();
-
-    var manufacturer = await dbContext.Manufacturers
-        .FirstAsync(m => !m.IsDeleted);
-
-    var formData = new Dictionary<string, string>
-    {
-        ["__RequestVerificationToken"] = token!,
-        ["OwnerName"] = "HTTP Integration Vehicle",
-        ["ManufacturerId"] = manufacturer.Id.ToString(),
-        ["YearOfManufacture"] = "2020",
-        ["Weight"] = "1000"
-    };
-
-    using var form = new FormUrlEncodedContent(formData);
-
-    // Act
-    var response = await client.PostAsync(
-        "/Vehicles/Create",
-        form);
-
-    // Diagnostic information
-    var responseBody = await response.Content.ReadAsStringAsync();
-
-    Console.WriteLine($"POST Status: {response.StatusCode}");
-    Console.WriteLine($"POST Response Length: {responseBody.Length}");
-
-    // Assert
-    Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-
-    var vehicle = await dbContext.Vehicles
-        .AsNoTracking()
-        .FirstOrDefaultAsync(
-            v => v.OwnerName == "HTTP Integration Vehicle");
-
-    Assert.NotNull(vehicle);
-    Assert.Equal(1000, vehicle.Weight);
-    Assert.False(vehicle.IsDeleted);
-}
-[Fact]
-public async Task EditVehicle_Get_ReturnsEditPage()
-{
-    // Arrange
-    var dbContext = Scope.ServiceProvider
-        .GetRequiredService<ApplicationDbContext>();
-
-    var manufacturer = await dbContext.Manufacturers
-        .FirstAsync(m => !m.IsDeleted);
-
-    var category = await dbContext.VehicleCategories
-        .FirstAsync(c => !c.IsDeleted && c.Name == "Medium");
-
-    var vehicle = new Vehicle
-    {
-        OwnerName = "Edit Page Integration Test",
-        ManufacturerId = manufacturer.Id,
-        YearOfManufacture = 2020,
-        Weight = 1000,
-        CategoryId = category.Id,
-        CreatedAt = DateTime.UtcNow,
-        UpdatedAt = DateTime.UtcNow,
-        IsDeleted = false
-    };
-
-    dbContext.Vehicles.Add(vehicle);
-    await dbContext.SaveChangesAsync();
-
-    using var client = Factory.CreateClient();
-
-    // Act
-    var response = await client.GetAsync(
-        $"/Vehicles/Edit/{vehicle.Id}");
-
-    var content = await response.Content.ReadAsStringAsync();
-
-    // Assert
-    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    Assert.Contains("Edit Page Integration Test", content);
-}
-[Fact]
-public async Task EditVehicle_Get_WhenVehicleDoesNotExist_ReturnsNotFound()
-{
-    // Arrange
-    using var client = Factory.CreateClient();
-
-    const int nonExistingVehicleId = 999999;
-
-    // Act
-    var response = await client.GetAsync(
-        $"/Vehicles/Edit/{nonExistingVehicleId}");
-
-    // Assert
-    Assert.Equal(
-        HttpStatusCode.NotFound,
-        response.StatusCode);
-}
-[Fact]
-public async Task EditVehicle_Post_WhenWeightChanges_UpdatesVehicleAndCategory()
-{
-    // Arrange
-    var dbContext = Scope.ServiceProvider
-        .GetRequiredService<ApplicationDbContext>();
-
-    var manufacturer = await dbContext.Manufacturers
-        .FirstAsync(m => !m.IsDeleted);
-
-    var mediumCategory = await dbContext.VehicleCategories
-        .FirstAsync(c => !c.IsDeleted && c.Name == "Medium");
-
-    var heavyCategory = await dbContext.VehicleCategories
-        .FirstAsync(c => !c.IsDeleted && c.Name == "Heavy");
-
-    var vehicle = new Vehicle
-    {
-        OwnerName = "HTTP Edit Integration Test",
-        ManufacturerId = manufacturer.Id,
-        YearOfManufacture = 2020,
-        Weight = 1000,
-        CategoryId = mediumCategory.Id,
-        CreatedAt = DateTime.UtcNow,
-        UpdatedAt = DateTime.UtcNow,
-        IsDeleted = false
-    };
-
-    dbContext.Vehicles.Add(vehicle);
-    await dbContext.SaveChangesAsync();
-
-    using var client = Factory.CreateClient(
-    new WebApplicationFactoryClientOptions
-    {
-        AllowAutoRedirect = false
-    });
-
-    // First GET the Edit page to obtain the anti-forgery token.
-    var getResponse = await client.GetAsync(
-        $"/Vehicles/Edit/{vehicle.Id}");
-
-    Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
-
-    var html = await getResponse.Content.ReadAsStringAsync();
-
-    var parser = new AngleSharp.Html.Parser.HtmlParser();
-    var document = await parser.ParseDocumentAsync(html);
-
-    var token = document
-        .QuerySelector("input[name='__RequestVerificationToken']")
-        ?.GetAttribute("value");
-
-    Assert.False(
-        string.IsNullOrWhiteSpace(token),
-        "Edit page did not contain an anti-forgery token.");
-
-    // Prepare edited vehicle.
-    var formData = new Dictionary<string, string>
-    {
-        ["__RequestVerificationToken"] = token!,
-        ["Id"] = vehicle.Id.ToString(),
-        ["OwnerName"] = vehicle.OwnerName,
-        ["ManufacturerId"] = manufacturer.Id.ToString(),
-        ["YearOfManufacture"] = "2020",
-        ["Weight"] = "3000"
-    };
-
-    using var form = new FormUrlEncodedContent(formData);
-
-    // Act
-    var response = await client.PostAsync(
-        "/Vehicles/Edit",
-        form);
-
-    // Assert HTTP response
-    Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-
-    // Verify database
-    var updatedVehicle = await dbContext.Vehicles
-        .AsNoTracking()
-        .FirstAsync(v => v.Id == vehicle.Id);
-
-    Assert.Equal(3000, updatedVehicle.Weight);
-    Assert.Equal(heavyCategory.Id, updatedVehicle.CategoryId);
-}
-[Fact]
-public async Task DeleteVehicle_Post_SoftDeletesVehicle()
-{
-    // Arrange
-    var dbContext = Scope.ServiceProvider
-        .GetRequiredService<ApplicationDbContext>();
-
-    var manufacturer = await dbContext.Manufacturers
-        .FirstAsync(m => !m.IsDeleted);
-
-    var mediumCategory = await dbContext.VehicleCategories
-        .FirstAsync(c => !c.IsDeleted && c.Name == "Medium");
-
-    var vehicle = new Vehicle
-    {
-        OwnerName = "HTTP Delete Integration Test",
-        ManufacturerId = manufacturer.Id,
-        YearOfManufacture = 2020,
-        Weight = 1000,
-        CategoryId = mediumCategory.Id,
-        CreatedAt = DateTime.UtcNow,
-        UpdatedAt = DateTime.UtcNow,
-        IsDeleted = false
-    };
-
-    dbContext.Vehicles.Add(vehicle);
-    await dbContext.SaveChangesAsync();
-
-    var vehicleId = vehicle.Id;
-
-    using var client = Factory.CreateClient(
-    new WebApplicationFactoryClientOptions
-    {
-        AllowAutoRedirect = false
-    });
-
-    // Get a page that contains the anti-forgery token.
-    var getResponse = await client.GetAsync("/Vehicles/Index");
-
-    Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
-
-    var html = await getResponse.Content.ReadAsStringAsync();
-
-    var parser = new AngleSharp.Html.Parser.HtmlParser();
-    var document = await parser.ParseDocumentAsync(html);
-
-    var token = document
-        .QuerySelector("input[name='__RequestVerificationToken']")
-        ?.GetAttribute("value");
-
-    Assert.False(
-        string.IsNullOrWhiteSpace(token),
-        "Index page did not contain an anti-forgery token.");
-
-    var formData = new Dictionary<string, string>
-    {
-        ["__RequestVerificationToken"] = token!,
-        ["id"] = vehicleId.ToString()
-    };
-
-    using var form = new FormUrlEncodedContent(formData);
-
-    // Act
-    var response = await client.PostAsync(
-        "/Vehicles/Delete",
-        form);
-
-    // Assert
-    Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-
-    var deletedVehicle = await dbContext.Vehicles
-        .AsNoTracking()
-        .FirstAsync(v => v.Id == vehicleId);
-
-    Assert.True(deletedVehicle.IsDeleted);
-}
-[Fact]
-public async Task DeleteVehicle_Post_WhenVehicleDoesNotExist_RedirectsWithError()
-{
-    // Arrange
-    using var client = Factory.CreateClient(
-        new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false
-        });
-
-    var getResponse = await client.GetAsync("/Vehicles/Index");
-
-    Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
-
-    var html = await getResponse.Content.ReadAsStringAsync();
-
-    var parser = new AngleSharp.Html.Parser.HtmlParser();
-    var document = await parser.ParseDocumentAsync(html);
-
-    var token = document
-        .QuerySelector("input[name='__RequestVerificationToken']")
-        ?.GetAttribute("value");
-
-    Assert.False(
-        string.IsNullOrWhiteSpace(token),
-        "Index page did not contain an anti-forgery token.");
-
-    var formData = new Dictionary<string, string>
-    {
-        ["__RequestVerificationToken"] = token!,
-        ["id"] = "999999"
-    };
-
-    using var form = new FormUrlEncodedContent(formData);
-
-    // Act
-    var response = await client.PostAsync(
-        "/Vehicles/Delete",
-        form);
-
-    // Assert
-    Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-}
-[Fact]
-public async Task Vehicles_Index_WithSearch_ReturnsMatchingVehicle()
-{
-    // Arrange
-    var dbContext = Scope.ServiceProvider
-        .GetRequiredService<ApplicationDbContext>();
-
-    var manufacturer = await dbContext.Manufacturers
-        .FirstAsync(m => !m.IsDeleted);
-
-    var category = await dbContext.VehicleCategories
-        .FirstAsync(c => !c.IsDeleted && c.Name == "Medium");
-
-    var matchingVehicle = new Vehicle
-    {
-        OwnerName = "Search Matching Vehicle",
-        ManufacturerId = manufacturer.Id,
-        YearOfManufacture = 2020,
-        Weight = 1000,
-        CategoryId = category.Id,
-        CreatedAt = DateTime.UtcNow,
-        UpdatedAt = DateTime.UtcNow,
-        IsDeleted = false
-    };
-
-    var otherVehicle = new Vehicle
-    {
-        OwnerName = "Different Vehicle",
-        ManufacturerId = manufacturer.Id,
-        YearOfManufacture = 2021,
-        Weight = 1000,
-        CategoryId = category.Id,
-        CreatedAt = DateTime.UtcNow,
-        UpdatedAt = DateTime.UtcNow,
-        IsDeleted = false
-    };
-
-    dbContext.Vehicles.AddRange(
-        matchingVehicle,
-        otherVehicle);
-
-    await dbContext.SaveChangesAsync();
-
-    using var client = Factory.CreateClient();
-
-    // Act
-    var response = await client.GetAsync(
-        "/Vehicles/Index?search=Search%20Matching");
-
-    var html = await response.Content.ReadAsStringAsync();
-
-    // Assert
-    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-    Assert.Contains(
-        "Search Matching Vehicle",
-        html);
-
-    Assert.DoesNotContain(
-        "Different Vehicle",
-        html);
-}
-
-[Fact]
-public async Task Vehicles_Index_Page2_ReturnsSecondPageOfVehicles()
-{
-    // Arrange
-    var dbContext = Scope.ServiceProvider
-        .GetRequiredService<ApplicationDbContext>();
-
-    var manufacturer = await dbContext.Manufacturers
-        .FirstAsync(m => !m.IsDeleted);
-
-    var category = await dbContext.VehicleCategories
-        .FirstAsync(c => !c.IsDeleted && c.Name == "Medium");
-
-    for (var i = 1; i <= 11; i++)
-    {
-        dbContext.Vehicles.Add(new Vehicle
-        {
-            OwnerName = $"Pagination Vehicle {i:00}",
-            ManufacturerId = manufacturer.Id,
-            YearOfManufacture = 2020,
-            Weight = 1000,
-            CategoryId = category.Id,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
-            IsDeleted = false
-        });
+        // Arrange
+        var manufacturer = await GetManufacturerAsync();
+        var model = NewForm("Non Existing Vehicle", manufacturer.Id, 1000, NonExistingId);
+
+        // Act
+        var result = VehicleService.Update(model);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Equal("Vehicle could not be found.", result.ErrorMessage);
+        Assert.False(await DbContext.Vehicles.AnyAsync(v => v.Id == NonExistingId));
     }
 
-    await dbContext.SaveChangesAsync();
+    [Fact]
+    public async Task DeleteVehicle_WhenVehicleDoesNotExist_Fails()
+    {
+        // Act
+        var result = VehicleService.Delete(NonExistingId);
 
-    using var client = Factory.CreateClient();
+        // Assert
+        Assert.False(result.Success);
+        Assert.Equal("Vehicle could not be found.", result.ErrorMessage);
+        Assert.False(await DbContext.Vehicles.AnyAsync(v => v.Id == NonExistingId));
+    }
 
-    // Act
-    var response = await client.GetAsync(
-        "/Vehicles/Index?page=2");
+    [Fact]
+    public async Task DeleteVehicle_SetsIsDeletedTrue()
+    {
+        // Arrange
+        var vehicle = await AddVehicleAsync("Soft Delete Integration Test");
 
-    var html = await response.Content.ReadAsStringAsync();
+        // Act
+        var result = VehicleService.Delete(vehicle.Id);
 
-    // Assert
-    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // Assert
+        Assert.True(result.Success);
 
-    Assert.Contains("Pagination Vehicle 11", html);
+        var deletedVehicle = await DbContext.Vehicles
+            .AsNoTracking()
+            .FirstAsync(v => v.Id == vehicle.Id);
 
-    Assert.DoesNotContain("Pagination Vehicle 01", html);
-}
+        Assert.True(deletedVehicle.IsDeleted);
+    }
 
+    #endregion
+
+    #region HTTP: create / edit / delete
+
+    [Fact]
+    public async Task CreateVehicle_Post_WithValidData_CreatesVehicle()
+    {
+        // Arrange
+        using var client = CreateNoRedirectClient();
+        var token = await GetAntiForgeryTokenAsync(client, "/Vehicles/Create");
+        var manufacturer = await GetManufacturerAsync();
+
+        using var form = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["OwnerName"] = "HTTP Integration Vehicle",
+            ["ManufacturerId"] = manufacturer.Id.ToString(),
+            ["YearOfManufacture"] = "2020",
+            ["Weight"] = "1000"
+        });
+
+        // Act
+        var response = await client.PostAsync("/Vehicles/Create", form);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+
+        var vehicle = await DbContext.Vehicles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(v => v.OwnerName == "HTTP Integration Vehicle");
+
+        Assert.NotNull(vehicle);
+        Assert.Equal(1000, vehicle.Weight);
+        Assert.False(vehicle.IsDeleted);
+    }
+
+    [Fact]
+    public async Task EditVehicle_Post_WhenWeightChanges_UpdatesVehicleAndCategory()
+    {
+        // Arrange
+        var vehicle = await AddVehicleAsync("HTTP Edit Integration Test");
+        var heavyCategory = await GetCategoryAsync("Heavy");
+
+        using var client = CreateNoRedirectClient();
+        var token = await GetAntiForgeryTokenAsync(client, $"/Vehicles/Edit/{vehicle.Id}");
+
+        using var form = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["Id"] = vehicle.Id.ToString(),
+            ["OwnerName"] = vehicle.OwnerName,
+            ["ManufacturerId"] = vehicle.ManufacturerId.ToString(),
+            ["YearOfManufacture"] = "2020",
+            ["Weight"] = "3000"
+        });
+
+        // Act
+        var response = await client.PostAsync("/Vehicles/Edit", form);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+
+        var updatedVehicle = await DbContext.Vehicles
+            .AsNoTracking()
+            .FirstAsync(v => v.Id == vehicle.Id);
+
+        Assert.Equal(3000, updatedVehicle.Weight);
+        Assert.Equal(heavyCategory.Id, updatedVehicle.CategoryId);
+    }
+
+    [Fact]
+    public async Task DeleteVehicle_Post_SoftDeletesVehicle()
+    {
+        // Arrange
+        var vehicle = await AddVehicleAsync("HTTP Delete Integration Test");
+
+        using var client = CreateNoRedirectClient();
+        var token = await GetAntiForgeryTokenAsync(client, "/Vehicles/Index");
+
+        using var form = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["id"] = vehicle.Id.ToString()
+        });
+
+        // Act
+        var response = await client.PostAsync("/Vehicles/Delete", form);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+
+        var deletedVehicle = await DbContext.Vehicles
+            .AsNoTracking()
+            .FirstAsync(v => v.Id == vehicle.Id);
+
+        Assert.True(deletedVehicle.IsDeleted);
+    }
+
+    [Fact]
+    public async Task DeleteVehicle_Post_WhenVehicleDoesNotExist_RedirectsWithError()
+    {
+        // Arrange
+        using var client = CreateNoRedirectClient();
+        var token = await GetAntiForgeryTokenAsync(client, "/Vehicles/Index");
+
+        using var form = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = token,
+            ["id"] = NonExistingId.ToString()
+        });
+
+        // Act
+        var response = await client.PostAsync("/Vehicles/Delete", form);
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+    }
+
+    #endregion
+
+    #region HTTP: search / paging
+
+    [Fact]
+    public async Task Vehicles_Index_WithSearch_ReturnsMatchingVehicle()
+    {
+        // Arrange
+        await AddVehicleAsync("Search Matching Vehicle");
+        await AddVehicleAsync("Different Vehicle", year: 2021);
+
+        using var client = Factory.CreateClient();
+
+        // Act
+        var response = await client.GetAsync("/Vehicles/Index?search=Search%20Matching");
+        var html = await response.Content.ReadAsStringAsync();
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Search Matching Vehicle", html);
+        Assert.DoesNotContain("Different Vehicle", html);
+    }
+
+    [Fact]
+    public async Task Vehicles_Index_Page2_ReturnsSecondPageOfVehicles()
+    {
+        // Arrange
+        var manufacturer = await GetManufacturerAsync();
+        var category = await GetCategoryAsync("Medium");
+
+        DbContext.Vehicles.AddRange(
+            Enumerable.Range(1, 11).Select(i =>
+                NewVehicle($"Pagination Vehicle {i:00}", manufacturer.Id, category.Id)));
+
+        await DbContext.SaveChangesAsync();
+
+        using var client = Factory.CreateClient();
+
+        // Act
+        var response = await client.GetAsync("/Vehicles/Index?page=2");
+        var html = await response.Content.ReadAsStringAsync();
+
+        // Assert
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains("Pagination Vehicle 11", html);
+        Assert.DoesNotContain("Pagination Vehicle 01", html);
+    }
+
+    #endregion
 }

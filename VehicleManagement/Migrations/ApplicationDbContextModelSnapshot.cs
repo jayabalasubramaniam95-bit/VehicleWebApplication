@@ -31,7 +31,9 @@ namespace VehicleManagement.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
 
                     b.Property<bool>("IsDefault")
                         .HasColumnType("bit");
@@ -45,7 +47,9 @@ namespace VehicleManagement.Migrations
                         .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
 
                     b.HasKey("Id");
 
@@ -58,47 +62,47 @@ namespace VehicleManagement.Migrations
                         new
                         {
                             Id = 1,
-                            CreatedAt = new DateTime(2026, 9, 29, 15, 45, 32, 0, DateTimeKind.Unspecified),
+                            CreatedAt = new DateTime(2026, 10, 4, 15, 45, 32, 0, DateTimeKind.Unspecified),
                             IsDefault = true,
                             IsDeleted = false,
                             Name = "Mazda",
-                            UpdatedAt = new DateTime(2026, 9, 29, 15, 45, 32, 0, DateTimeKind.Unspecified)
+                            UpdatedAt = new DateTime(2026, 10, 4, 15, 45, 32, 0, DateTimeKind.Unspecified)
                         },
                         new
                         {
                             Id = 2,
-                            CreatedAt = new DateTime(2026, 9, 29, 15, 45, 32, 0, DateTimeKind.Unspecified),
+                            CreatedAt = new DateTime(2026, 10, 4, 15, 45, 32, 0, DateTimeKind.Unspecified),
                             IsDefault = true,
                             IsDeleted = false,
                             Name = "Mercedes",
-                            UpdatedAt = new DateTime(2026, 9, 29, 15, 45, 32, 0, DateTimeKind.Unspecified)
+                            UpdatedAt = new DateTime(2026, 10, 4, 15, 45, 32, 0, DateTimeKind.Unspecified)
                         },
                         new
                         {
                             Id = 3,
-                            CreatedAt = new DateTime(2026, 9, 29, 15, 45, 32, 0, DateTimeKind.Unspecified),
+                            CreatedAt = new DateTime(2026, 10, 4, 15, 45, 32, 0, DateTimeKind.Unspecified),
                             IsDefault = true,
                             IsDeleted = false,
                             Name = "Honda",
-                            UpdatedAt = new DateTime(2026, 9, 29, 15, 45, 32, 0, DateTimeKind.Unspecified)
+                            UpdatedAt = new DateTime(2026, 10, 4, 15, 45, 32, 0, DateTimeKind.Unspecified)
                         },
                         new
                         {
                             Id = 4,
-                            CreatedAt = new DateTime(2026, 9, 29, 15, 45, 32, 0, DateTimeKind.Unspecified),
+                            CreatedAt = new DateTime(2026, 10, 4, 15, 45, 32, 0, DateTimeKind.Unspecified),
                             IsDefault = true,
                             IsDeleted = false,
                             Name = "Ferrari",
-                            UpdatedAt = new DateTime(2026, 9, 29, 15, 45, 32, 0, DateTimeKind.Unspecified)
+                            UpdatedAt = new DateTime(2026, 10, 4, 15, 45, 32, 0, DateTimeKind.Unspecified)
                         },
                         new
                         {
                             Id = 5,
-                            CreatedAt = new DateTime(2026, 9, 29, 15, 45, 32, 0, DateTimeKind.Unspecified),
+                            CreatedAt = new DateTime(2026, 10, 4, 15, 45, 32, 0, DateTimeKind.Unspecified),
                             IsDefault = true,
                             IsDeleted = false,
                             Name = "Toyota",
-                            UpdatedAt = new DateTime(2026, 9, 29, 15, 45, 32, 0, DateTimeKind.Unspecified)
+                            UpdatedAt = new DateTime(2026, 10, 4, 15, 45, 32, 0, DateTimeKind.Unspecified)
                         });
                 });
 
@@ -155,7 +159,9 @@ namespace VehicleManagement.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
 
                     b.Property<string>("Icon")
                         .HasColumnType("nvarchar(max)");
@@ -177,7 +183,9 @@ namespace VehicleManagement.Migrations
                         .HasColumnType("nvarchar(50)");
 
                     b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("datetime2");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
 
                     b.HasKey("Id");
 
@@ -187,31 +195,34 @@ namespace VehicleManagement.Migrations
                         new
                         {
                             Id = 1,
-                            CreatedAt = new DateTime(2026, 9, 29, 15, 45, 32, 0, DateTimeKind.Unspecified),
+                            CreatedAt = new DateTime(2026, 10, 4, 15, 45, 32, 0, DateTimeKind.Unspecified),
+                            Icon = "car-green",
                             IsDeleted = false,
                             MaxWeight = 500m,
                             MinWeight = 0m,
                             Name = "Light",
-                            UpdatedAt = new DateTime(2026, 9, 29, 15, 45, 32, 0, DateTimeKind.Unspecified)
+                            UpdatedAt = new DateTime(2026, 10, 4, 15, 45, 32, 0, DateTimeKind.Unspecified)
                         },
                         new
                         {
                             Id = 2,
-                            CreatedAt = new DateTime(2026, 9, 29, 15, 45, 32, 0, DateTimeKind.Unspecified),
+                            CreatedAt = new DateTime(2026, 10, 4, 15, 45, 32, 0, DateTimeKind.Unspecified),
+                            Icon = "van-yellow",
                             IsDeleted = false,
                             MaxWeight = 2500m,
                             MinWeight = 500m,
                             Name = "Medium",
-                            UpdatedAt = new DateTime(2026, 9, 29, 15, 45, 32, 0, DateTimeKind.Unspecified)
+                            UpdatedAt = new DateTime(2026, 10, 4, 15, 45, 32, 0, DateTimeKind.Unspecified)
                         },
                         new
                         {
                             Id = 3,
-                            CreatedAt = new DateTime(2026, 9, 29, 15, 45, 32, 0, DateTimeKind.Unspecified),
+                            CreatedAt = new DateTime(2026, 10, 4, 15, 45, 32, 0, DateTimeKind.Unspecified),
+                            Icon = "truck-red",
                             IsDeleted = false,
                             MinWeight = 2500m,
                             Name = "Heavy",
-                            UpdatedAt = new DateTime(2026, 9, 29, 15, 45, 32, 0, DateTimeKind.Unspecified)
+                            UpdatedAt = new DateTime(2026, 10, 4, 15, 45, 32, 0, DateTimeKind.Unspecified)
                         });
                 });
 

@@ -32,7 +32,7 @@ public class VehicleCategoryRepository : IVehicleCategoryRepository
                 c.Icon,
                 c.MinWeight,
                 c.MaxWeight,
-                _context.Vehicles.Count(v => v.CategoryId == c.Id)))
+                _context.Vehicles.Where(x=>!x.IsDeleted).Count(v => v.CategoryId == c.Id)))
             .ToList();
 
     public List<VehicleCategory> GetAllVehicleCategory() =>
@@ -66,7 +66,7 @@ public class VehicleCategoryRepository : IVehicleCategoryRepository
     }
 
     public bool HasVehicles(int categoryId) =>
-        _context.Vehicles.Any(v => v.CategoryId == categoryId);
+        _context.Vehicles.Any(v => v.CategoryId == categoryId && !v.IsDeleted);
 
     #endregion
 

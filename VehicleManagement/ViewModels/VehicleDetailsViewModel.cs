@@ -20,4 +20,6 @@ public class VehicleDetailsViewModel
 
     [Display(Name = "Category")]
     public string CategoryName { get; set; } = string.Empty;
+
+     public string? CategoryIcon { get; set; }
 }

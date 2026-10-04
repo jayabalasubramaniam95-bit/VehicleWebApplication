@@ -25,14 +25,14 @@ public class ManufacturerRepository : IManufacturerRepository
             .ThenBy(v => v.Id)
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
-            .Select(m => new ManufacturerSummary(m.Id, m.Name, m.IsDefault, m.Vehicles.Count))
+            .Select(m => new ManufacturerSummary(m.Id, m.Name, m.IsDefault,  m.Vehicles.Count(v => !v.IsDeleted)))
             .ToList();
     }
 
     public Manufacturer? GetManufacturersWithVehicles(int id) =>
         _context.Manufacturers
            .AsNoTracking()
-           .Include(m => m.Vehicles)
+           .Include(m => m.Vehicles.Where(v => !v.IsDeleted && !v.Category.IsDeleted))
            .ThenInclude(v => v.Category)
            .FirstOrDefault(m => m.Id == id && !m.IsDeleted);
 

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using static VehicleManagement.ViewModels.VehicleCategoryIcons;
 using VehicleManagement.Models;
 
 namespace VehicleManagement.Data
@@ -17,6 +18,19 @@ namespace VehicleManagement.Data
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+
+            // OnModelCreating
+modelBuilder.Entity<Manufacturer>(e =>
+{
+    e.Property(x => x.CreatedAt).HasDefaultValueSql("GETUTCDATE()");   // SQL Server
+    e.Property(x => x.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
+});
+
+modelBuilder.Entity<VehicleCategory>(e =>
+{
+    e.Property(x => x.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+    e.Property(x => x.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
+});
             modelBuilder.Entity<Manufacturer>(e =>
             {
                 e.Property(m => m.Name)
@@ -60,7 +74,7 @@ namespace VehicleManagement.Data
 
         private static void SeedManufacturers(ModelBuilder modelBuilder)
         {
-            var seedDate = new DateTime(2026, 9, 29, 15, 45, 32);
+            var seedDate = new DateTime(2026, 10, 04, 15, 45, 32);
             modelBuilder.Entity<Manufacturer>().HasData(
                 new Manufacturer { Id = 1, Name = "Mazda",IsDefault = true , CreatedAt = seedDate, UpdatedAt = seedDate, IsDeleted = false },
                 new Manufacturer { Id = 2, Name = "Mercedes", IsDefault = true, CreatedAt = seedDate, UpdatedAt = seedDate, IsDeleted = false },
@@ -72,12 +86,13 @@ namespace VehicleManagement.Data
 
         private static void SeedVehicleCategories(ModelBuilder modelBuilder)
         {
-           var seedDate = new DateTime(2026, 9, 29, 15, 45, 32);
+           var seedDate = new DateTime(2026, 10, 04, 15, 45, 32);
             modelBuilder.Entity<VehicleCategory>().HasData(
-                new VehicleCategory { Id = 1, Name = "Light", MinWeight = 0, MaxWeight = 500, CreatedAt = seedDate, UpdatedAt = seedDate, IsDeleted = false },
-                new VehicleCategory { Id = 2, Name = "Medium", MinWeight = 500, MaxWeight = 2500, CreatedAt = seedDate, UpdatedAt = seedDate, IsDeleted = false },
-                new VehicleCategory { Id = 3, Name = "Heavy", MinWeight = 2500, MaxWeight = null, CreatedAt = seedDate, UpdatedAt = seedDate, IsDeleted = false }
+                new VehicleCategory { Id = 1, Name = "Light", MinWeight = 0, MaxWeight = 500, CreatedAt = seedDate, UpdatedAt = seedDate, Icon = "car-green", IsDeleted = false },
+                new VehicleCategory { Id = 2, Name = "Medium", MinWeight = 500, MaxWeight = 2500, CreatedAt = seedDate, UpdatedAt = seedDate, Icon = "van-yellow", IsDeleted = false },
+                new VehicleCategory { Id = 3, Name = "Heavy", MinWeight = 2500, MaxWeight = null, CreatedAt = seedDate, UpdatedAt = seedDate, Icon = "truck-red", IsDeleted = false }
             );
+
         }
     }
 }

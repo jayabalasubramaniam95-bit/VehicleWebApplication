@@ -88,7 +88,8 @@ public class VehicleService : IVehicleService
                 ManufacturerName = vehicle.Manufacturer?.Name ?? Unknown,
                 YearOfManufacture = vehicle.YearOfManufacture,
                 WeightKg = vehicle.Weight,
-                CategoryName = vehicle.Category?.Name ?? Unknown
+                CategoryName = vehicle.Category?.Name ?? Unknown,
+                CategoryIcon = vehicle.Category?.Icon?? string.Empty
             };
     }
 
@@ -138,7 +139,6 @@ public class VehicleService : IVehicleService
         var vehicle = new Vehicle { CreatedAt = now, IsDeleted = false };
 
         Apply(vehicle, model, categoryId);
-
         _vehicleRepository.Add(vehicle);
         return ServiceResult.Ok();
     }

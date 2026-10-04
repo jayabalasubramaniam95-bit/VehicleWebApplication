@@ -17,7 +17,7 @@ public class VehicleRepository : IVehicleRepository
 
     // Every read starts here, so deleted vehicles (or vehicles of deleted manufacturers) never leak in
     private IQueryable<Vehicle> Active =>
-        _context.Vehicles.Where(v => !v.IsDeleted && !v.Manufacturer.IsDeleted);
+        _context.Vehicles.Where(v => !v.IsDeleted && !v.Manufacturer.IsDeleted && !v.Category.IsDeleted);
 
     #endregion
 
@@ -34,7 +34,7 @@ public class VehicleRepository : IVehicleRepository
     public Vehicle? GetVehicleDetailsById(int id) =>
         Active
             .AsNoTracking()
-            .Include(v => v.Manufacturer)
+            .Include(m => m.Manufacturer)
             .Include(v => v.Category)
             .FirstOrDefault(v => v.Id == id);
 

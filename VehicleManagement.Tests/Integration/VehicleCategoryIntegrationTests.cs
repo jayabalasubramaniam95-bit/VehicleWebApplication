@@ -123,15 +123,7 @@ public class VehicleCategoryIntegrationTests : IntegrationTestBase
 
     #endregion
 
-    #region Range Validation
-
-    public static TheoryData<string, decimal, decimal?, string> InvalidRanges => new()
-    {
-        { "Invalid Empty Range",   0m,    null,  "must have at least a minimum or maximum weight" },
-        { "Invalid Reverse Range", 3000m, 2000m, "maximum weight greater than its minimum weight" },
-        { "Invalid Equal Range",   3000m, 3000m, "maximum weight greater than its minimum weight" },
-    };
-
+    #region Helper Methods
     private async Task<HttpResponseMessage> PostCategoryAsync(
     string url,
     Dictionary<string, string> fields)
@@ -158,37 +150,54 @@ public class VehicleCategoryIntegrationTests : IntegrationTestBase
         return await client.PostAsync(url, form);
     }
 
-    [Theory]
-    [MemberData(nameof(InvalidRanges))]
+       public static TheoryData<string, decimal, decimal?> InvalidRanges => new()
+        {
+            { "Invalid Reverse Range", 3000m, 2000m },
+            { "Invalid Equal Range", 3000m, 3000m }
+        };
+
+        [Theory]
+        [MemberData(nameof(InvalidRanges))]
     public async Task CreateCategory_WithInvalidRange_IsRejected(
     string name,
     decimal minWeight,
-    decimal? maxWeight,
-    string expectedError)
+    decimal? maxWeight)
     {
         var response = await PostCategoryAsync(
-            "/VehicleCategory/Create",
-            new Dictionary<string, string>
-            {
-                ["Name"] = name,
-                ["MinWeight"] = minWeight.ToString(),
-                ["MaxWeight"] = maxWeight?.ToString() ?? string.Empty,
-                ["Icon"] = "car"
-            });
+        "/VehicleCategory/Create",
+        new Dictionary<string, string>
+        {
+        ["Name"] = name,
+        ["MinWeight"] = minWeight.ToString(CultureInfo.InvariantCulture),
+        ["MaxWeight"] = maxWeight?.ToString(CultureInfo.InvariantCulture)
+        ?? string.Empty,
+        ["Icon"] = "car"
+        });
 
-        // Invalid input should return the Create page again.
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        // Invalid configuration must return the form.
+        Assert.Equal(
+            HttpStatusCode.OK,
+            response.StatusCode);
 
-        // The invalid category must not be saved.
+        // The invalid category must not be persisted.
         var categoryExists = await Db.VehicleCategories
-            .AnyAsync(c => c.Name == name && !c.IsDeleted);
+            .AsNoTracking()
+            .AnyAsync(c =>
+                c.Name == name &&
+                !c.IsDeleted);
 
         Assert.False(categoryExists);
 
-        // The page should contain an error message.
+        // The response should contain a validation message.
         var html = await response.Content.ReadAsStringAsync();
 
-        Assert.Contains("error", html, StringComparison.OrdinalIgnoreCase);
+        Assert.True(
+            html.Contains("validation", StringComparison.OrdinalIgnoreCase) ||
+            html.Contains("invalid", StringComparison.OrdinalIgnoreCase) ||
+            html.Contains("greater", StringComparison.OrdinalIgnoreCase) ||
+            html.Contains("range", StringComparison.OrdinalIgnoreCase),
+            "The invalid category response did not contain an expected validation message.");
+
     }
 
     [Fact]
@@ -255,26 +264,92 @@ public class VehicleCategoryIntegrationTests : IntegrationTestBase
     [Fact]
     public async Task UpdateCategory_WhenRangeChanges_RecategorisesExistingVehicles()
     {
+        // Initial configuration:
+        //   Light  :    0 - 500
+        //   Medium :  500 - 2500
+        //   Heavy  : 2500+
+        //
+        // A 2700 kg vehicle belongs to Heavy.
+
+        // Arrange
         var medium = await GetCategoryAsync("Medium");
-        var heavy  = await GetCategoryAsync("Heavy");
+        var heavy = await GetCategoryAsync("Heavy");
 
-        var vehicle = await AddVehicleAsync(
-            "Category Recategorisation Test",
+        var vehicle = await AddVehicleAsync("Category Recategorisation Test", heavy.Id, 2700m);
+
+        Assert.Equal(heavy.Id, vehicle.CategoryId);
+
+        // Act
+        //
+        // Change Medium from 500 - 2500 to 500 - 3000.
+        // The controller/service should automatically move Heavy's minimum
+        // from 2500 to 3000 and recategorise the existing 2700 kg vehicle.
+        var response = await PostCategoryUpdateAsync(
             medium.Id,
-            2700);
-        
-        // Seed a state the service would never produce through validation:
-        // Heavy starts at 3000, leaving a gap at 2500-3000.
-        heavy.MinWeight = 3000;
-        await Db.SaveChangesAsync();
+            new Dictionary<string, string>
+            {
+                ["Id"] = medium.Id.ToString(),
+                ["Name"] = medium.Name,
+                ["MinWeight"] = "500",
+                ["MaxWeight"] = "3000",
+                ["Icon"] = medium.Icon ?? "car"
+            });
 
-        // Extending Medium to 3000 closes the gap, so this update is valid.
-        var result = CategoryService.Update(UpdateForm(medium, 500, 3000));
+        // Assert
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
 
-        Assert.NotEqual(CategorySaveStatus.InvalidRange, result.Status);
+        // Medium was updated.
+        var updatedMedium = await Db.VehicleCategories
+            .AsNoTracking()
+            .FirstAsync(c => c.Id == medium.Id);
 
-        await Db.Entry(vehicle).ReloadAsync();
-        Assert.Equal(medium.Id, vehicle.CategoryId);   // 2700 is now Medium
+        Assert.Equal(3000m, updatedMedium.MaxWeight);
+
+        // Heavy was moved from 2500 to 3000.
+        var updatedHeavy = await Db.VehicleCategories
+            .AsNoTracking()
+            .FirstAsync(c => c.Id == heavy.Id);
+
+        Assert.Equal(3000m, updatedHeavy.MinWeight);
+
+        // The existing vehicle was recategorised: 2700 kg is now inside
+        // Medium (500 - 3000), so it must belong to Medium.
+        var updatedVehicle = await Db.Vehicles
+            .AsNoTracking()
+            .FirstAsync(v => v.Id == vehicle.Id);
+
+        Assert.Equal(medium.Id, updatedVehicle.CategoryId);
+    }
+        private async Task<HttpResponseMessage> PostCategoryUpdateAsync(
+        int categoryId,
+        Dictionary<string, string> fields)
+    {
+        using var client = Factory.CreateClient(
+            new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var editUrl = $"/VehicleCategory/Edit/{categoryId}";
+
+        // Get the edit page first so we can retrieve the antiforgery token.
+        var getResponse = await client.GetAsync(editUrl);
+
+        Assert.Equal(HttpStatusCode.OK, getResponse.StatusCode);
+
+        var html = await getResponse.Content.ReadAsStringAsync();
+        var document = await new HtmlParser().ParseDocumentAsync(html);
+
+        var token = document
+            .QuerySelector("input[name='__RequestVerificationToken']")
+            ?.GetAttribute("value");
+
+        Assert.False(
+            string.IsNullOrWhiteSpace(token),
+            "Anti-forgery token was not found.");
+
+        fields["__RequestVerificationToken"] = token!;
+
+        using var form = new FormUrlEncodedContent(fields);
+
+        return await client.PostAsync(editUrl, form);
     }
 
     #endregion

@@ -1,5 +1,5 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using VehicleManagement.Services;
 using VehicleManagement.ViewModels;
 
@@ -7,106 +7,210 @@ namespace VehicleManagement.Controllers;
 
 public class ManufacturersController : Controller
 {
-    #region Fields and Constructor
+    #region Constants
 
     private const int PageSize = 10;
-    private const string DuplicateNameMessage = "A manufacturer with this name already exists.";
 
-    private readonly IManufacturerService _manufacturerservice;
+    private const string SuccessKey = "SuccessMessage";
+    private const string ErrorKey = "ErrorMessage";
+    private const string FormView = "Form";
 
-    public ManufacturersController(IManufacturerService manufacturerservice) => _manufacturerservice = manufacturerservice;
+    private const string DuplicateNameMessage =
+        "A manufacturer with this name already exists.";
+
+    #endregion
+
+    #region Dependencies & Constructor
+
+    private readonly IManufacturerService _manufacturerService;
+
+    public ManufacturersController(IManufacturerService manufacturerService)
+    {
+        _manufacturerService = manufacturerService;
+    }
 
     #endregion
 
     #region List and Details
 
-    public ActionResult Index(
-        string? search, int page = 1) =>
-        View(_manufacturerservice.GetPageWiseManufacturer(search, page, PageSize));
+    [HttpGet]
+    public ActionResult Index(string? search, int page = 1)
+    {
+        var viewModel = _manufacturerService.GetPageWiseManufacturer(search, page, PageSize);
 
+        return View(viewModel);
+    }
+
+    [HttpGet]
     public ActionResult Details(int id)
     {
-        var model = _manufacturerservice.GetManufacturerDetails(id);
-        return model is null ? NotFound() : View(model);
+        var model = _manufacturerService.GetManufacturerDetails(id);
+
+        return model is null
+            ? NotFound()
+            : View(model);
     }
 
     #endregion
 
     #region Create
 
-    public ActionResult Create() => View("Form", new ManufacturerFormViewModel());
+    [HttpGet]
+    public ActionResult Create()
+    {
+        return View(FormView, new ManufacturerFormViewModel());
+    }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public ActionResult Create(ManufacturerFormViewModel model)
     {
         ValidateUniqueName(model);
-        if (!ModelState.IsValid) return View("Form", model);
 
-        _manufacturerservice.Create(model);
-        TempData["SuccessMessage"] = $"Manufacturer '{model.Name}' was added.";
-        return RedirectToAction(nameof(Index));
+        if (!ModelState.IsValid)
+        {
+            return View(FormView, model);
+        }
+
+        try
+        {
+            _manufacturerService.Create(model);
+
+            TempData[SuccessKey] = "Manufacturer created successfully.";
+
+            return RedirectToAction(nameof(Index));
+        }
+        catch (DbUpdateException)
+        {
+            TempData[ErrorKey] = "The manufacturer could not be saved. Please try again.";
+
+            return View(FormView, model);
+        }
     }
 
     #endregion
 
     #region Edit
 
+    [HttpGet]
     public ActionResult Edit(int id)
     {
-        var model = _manufacturerservice.GetManufacturerForEdit(id);
-        return model is null ? NotFound() : View("Form", model);
+        var model = _manufacturerService.GetManufacturerForEdit(id);
+
+        return model is null
+            ? NotFound()
+            : View(FormView, model);
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public ActionResult Edit(ManufacturerFormViewModel model)
     {
         ValidateUniqueName(model);
-        if (!ModelState.IsValid) return View("Form", model);
 
-        if (!_manufacturerservice.Update(model)) return NotFound();
+        if (!ModelState.IsValid)
+        {
+            return View(FormView, model);
+        }
 
-        TempData["SuccessMessage"] = $"Manufacturer '{model.Name}' was updated.";
-        return RedirectToAction(nameof(Index));
+        try
+        {
+            var updated = _manufacturerService.Update(model);
+
+            if (updated)
+            {
+                TempData[SuccessKey] = "Manufacturer updated successfully.";
+            }
+            else
+            {
+                TempData[ErrorKey] = "The manufacturer could not be found.";
+            }
+
+            return RedirectToAction(nameof(Index));
+        }
+        catch (DbUpdateException)
+        {
+            TempData[ErrorKey] = "The manufacturer could not be updated. Please try again.";
+
+            return View(FormView, model);
+        }
     }
 
     #endregion
 
-    #region Delete (confirmed via popup on the Index page, POST only)
+    #region Delete
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public ActionResult Delete(int id)
     {
-        var (key, message) = _manufacturerservice.Delete(id) switch
+        try
         {
-            DeleteResult.Deleted     => ("SuccessMessage", "Manufacturer deleted."),
-            DeleteResult.IsDefault   => ("ErrorMessage", "Default manufacturers cannot be deleted."),
-            DeleteResult.HasVehicles => ("ErrorMessage", "This manufacturer is used by vehicles and cannot be deleted."),
-            _                        => ("ErrorMessage", "Manufacturer was not found.")
-        };
+            var result = _manufacturerService.Delete(id);
 
-        TempData[key] = message;
+            switch (result)
+            {
+                case DeleteResult.NotFound:
+                    TempData[ErrorKey] = "The manufacturer could not be found.";
+                    break;
+
+                case DeleteResult.IsDefault:
+                    TempData[ErrorKey] = "The default manufacturer cannot be deleted.";
+                    break;
+
+                case DeleteResult.HasVehicles:
+                    TempData[ErrorKey] =
+                        "The manufacturer cannot be deleted because vehicles are associated with it.";
+                    break;
+
+                case DeleteResult.Deleted:
+                    TempData[SuccessKey] = "Manufacturer deleted successfully.";
+                    break;
+            }
+        }
+        catch (DbUpdateException)
+        {
+            TempData[ErrorKey] = "The manufacturer could not be deleted. Please try again.";
+        }
+
         return RedirectToAction(nameof(Index));
     }
 
     #endregion
 
-    #region Remote (client-side) Validation
+    #region Remote Validation
 
     [AcceptVerbs("GET", "POST")]
-    public ActionResult IsNameAvailable(string name, int id) =>
-        Json(string.IsNullOrWhiteSpace(name) || !_manufacturerservice.IsManufacturersNameExists(name, id == 0 ? null : id));
+    public ActionResult IsNameAvailable(string name, int id)
+    {
+        var isAvailable =
+            string.IsNullOrWhiteSpace(name) ||
+            !_manufacturerService.IsManufacturersNameExists(name, id == 0 ? null : id);
+
+        return Json(isAvailable);
+    }
 
     #endregion
 
     #region Helpers
 
-    /// <summary>Server-side duplicate check: the Remote attribute alone can be bypassed.</summary>
+    /// <summary>
+    /// Performs the server-side duplicate-name check.
+    /// Remote validation alone can be bypassed.
+    /// </summary>
     private void ValidateUniqueName(ManufacturerFormViewModel model)
     {
-        if (!ModelState.IsValid) return;
+        if (!ModelState.IsValid)
+        {
+            return;
+        }
 
-        if (_manufacturerservice.IsManufacturersNameExists(model.Name, model.IsEdit ? model.Id : null))
+        var excludeId = model.IsEdit ? model.Id : (int?)null;
+
+        if (_manufacturerService.IsManufacturersNameExists(model.Name, excludeId))
+        {
             ModelState.AddModelError(nameof(model.Name), DuplicateNameMessage);
+        }
     }
 
     #endregion

@@ -94,28 +94,72 @@ public class VehicleCategoryService : IVehicleCategoryService
 
     public CategorySaveResult Update(VehicleCategoryFormViewModel model)
     {
-        var categories = _categoryRepository.GetAllVehicleCategory();
+        var categories = _categoryRepository
+                                                .GetAllVehicleCategory()
+                                                .Where(c => !c.IsDeleted)
+                                                .OrderBy(c => c.MinWeight)
+                                                .ToList();
+
         var category = categories.FirstOrDefault(c => c.Id == model.Id);
-        if (category is null) return CategorySaveResult.NotFound();
-
-        var oldMin = category.MinWeight;
+        if (category is null)
+        {
+            return CategorySaveResult.NotFound();
+        }
+        // Check duplicate name.
+        var isDuplicateName = categories.Any(c =>
+            c.Id != model.Id &&
+            string.Equals(c.Name, model.Name, StringComparison.OrdinalIgnoreCase));
+        if (isDuplicateName)
+        {
+            return CategorySaveResult.InvalidRange("A category with this name already exists.");
+        }
         var oldMax = category.MaxWeight;
-        var now = DateTime.UtcNow;
 
+        // Apply the requested changes first.
         category.Name = model.Name;
-        category.Icon = model.Icon;
         category.MinWeight = model.MinWeight;
         category.MaxWeight = model.MaxWeight;
-        category.UpdatedAt = now;
+        category.Icon = model.Icon;
+        category.UpdatedAt = DateTime.UtcNow;
 
-        var error = ValidateRanges(categories, category);
-        if (error is not null) return CategorySaveResult.InvalidRange(error);
+        // If the edited category's maximum boundary changes,
+        // move the next category's minimum boundary with it.
+        if (oldMax is not null &&
+            model.MaxWeight is { } newMax &&
+            newMax != oldMax)
+        {
+            var next = categories
+                .Where(c => c.Id != category.Id)
+                .OrderBy(c => c.MinWeight)
+                .FirstOrDefault(c => c.MinWeight == oldMax);
+
+            if (next is not null)
+            {
+                next.MinWeight = newMax;
+                next.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
+        // Validate the FINAL configuration.
+        var validationError = ValidateRanges(categories);
+
+        if (validationError is not null)
+        {
+            return CategorySaveResult.InvalidRange(validationError);
+        }
 
         _categoryRepository.InTransaction(() =>
         {
             _categoryRepository.Update(category);
+
+            foreach (var changedCategory in categories.Where(c => c.Id != category.Id))
+            {
+                _categoryRepository.Update(changedCategory);
+            }
+
             RecategoriseVehicles(categories);
         });
+
         return CategorySaveResult.Success();
     }
 

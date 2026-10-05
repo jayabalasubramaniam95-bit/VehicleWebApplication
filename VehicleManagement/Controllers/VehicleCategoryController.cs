@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using VehicleManagement.Services;
 using VehicleManagement.ViewModels;
 
@@ -10,7 +11,10 @@ public class VehicleCategoryController : Controller
 
     private const string SuccessKey = "SuccessMessage";
     private const string ErrorKey = "ErrorMessage";
-    private const string DuplicateNameMessage = "A category with this name already exists.";
+    private const string FormView = "Form";
+
+    private const string DuplicateNameMessage =
+        "A category with this name already exists.";
 
     #endregion
 
@@ -25,27 +29,47 @@ public class VehicleCategoryController : Controller
 
     #endregion
 
-    #region List (Index)
+    #region List
 
     [HttpGet]
-    public ActionResult Index() =>
-        View(_categoryService.GetVehicleCategoryList());
+    public ActionResult Index()
+    {
+        return View(_categoryService.GetVehicleCategoryList());
+    }
 
     #endregion
 
     #region Create
 
     [HttpGet]
-    public ActionResult Create() =>
-        View("Form", new VehicleCategoryFormViewModel());
+    public ActionResult Create()
+    {
+        return View(FormView, new VehicleCategoryFormViewModel());
+    }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public ActionResult Create(VehicleCategoryFormViewModel model)
     {
         ValidateUniqueName(model);
-        if (!ModelState.IsValid) return View("Form", model);
 
-        return CompleteSave(_categoryService.Create(model), model, "added");
+        if (!ModelState.IsValid)
+        {
+            return View(FormView, model);
+        }
+
+        try
+        {
+            var result = _categoryService.Create(model);
+
+            return CompleteSave(result, model, "created");
+        }
+        catch (DbUpdateException)
+        {
+            TempData[ErrorKey] = "The vehicle category could not be saved. Please try again.";
+
+            return View(FormView, model);
+        }
     }
 
     #endregion
@@ -56,58 +80,119 @@ public class VehicleCategoryController : Controller
     public ActionResult Edit(int id)
     {
         var model = _categoryService.GetVehicleCategoryForEdit(id);
-        return model is null ? NotFound() : View("Form", model);
+
+        return model is null
+            ? NotFound()
+            : View(FormView, model);
     }
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public ActionResult Edit(VehicleCategoryFormViewModel model)
     {
         ValidateUniqueName(model);
-        if (!ModelState.IsValid) return View("Form", model);
 
-        return CompleteSave(_categoryService.Update(model), model, "updated");
+        if (!ModelState.IsValid)
+        {
+            return View(FormView, model);
+        }
+
+        try
+        {
+            var result = _categoryService.Update(model);
+
+            return CompleteSave(result, model, "updated");
+        }
+        catch (DbUpdateException)
+        {
+            TempData[ErrorKey] = "The vehicle category could not be updated. Please try again.";
+
+            return View(FormView, model);
+        }
     }
 
     #endregion
 
-    #region Delete (confirmed via popup on the Index page, POST only)
+    #region Delete
 
-    [HttpPost, ValidateAntiForgeryToken]
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public ActionResult Delete(int id)
     {
-        var (key, message) = _categoryService.Delete(id) switch
+        try
         {
-            CategoryDeleteResult.Deleted      => (SuccessKey, "Category deleted. The neighbouring range was extended to keep the ranges continuous."),
-            CategoryDeleteResult.HasVehicles  => (ErrorKey, "This category is used by vehicles and cannot be deleted."),
-            CategoryDeleteResult.LastCategory => (ErrorKey, "The last remaining category cannot be deleted."),
-            _                                 => (ErrorKey, "Category was not found.")
-        };
+            var result = _categoryService.Delete(id);
 
-        TempData[key] = message;
+            switch (result)
+            {
+                case CategoryDeleteResult.NotFound:
+                    TempData[ErrorKey] = "The vehicle category could not be found.";
+                    break;
+
+                case CategoryDeleteResult.HasVehicles:
+                    TempData[ErrorKey] =
+                        "The vehicle category cannot be deleted because vehicles are associated with it.";
+                    break;
+
+                case CategoryDeleteResult.LastCategory:
+                    TempData[ErrorKey] = "The last vehicle category cannot be deleted.";
+                    break;
+
+                case CategoryDeleteResult.Deleted:
+                    TempData[SuccessKey] = "Vehicle category deleted successfully.";
+                    break;
+            }
+        }
+        catch (DbUpdateException)
+        {
+            TempData[ErrorKey] = "The vehicle category could not be deleted. Please try again.";
+        }
+
         return RedirectToAction(nameof(Index));
     }
 
     #endregion
 
-    #region Remote (client-side) Validation
+    #region Remote Validation
 
     [AcceptVerbs("GET", "POST")]
-    public ActionResult IsNameAvailable(string name, int id) =>
-        Json(string.IsNullOrWhiteSpace(name) || !_categoryService.IsVehicleCategoryNameExists(name, id == 0 ? null : id));
+    public ActionResult IsNameAvailable(string name, int id)
+    {
+        var isAvailable =
+            string.IsNullOrWhiteSpace(name) ||
+            !_categoryService.IsVehicleCategoryNameExists(name, id == 0 ? null : id);
+
+        return Json(isAvailable);
+    }
 
     #endregion
 
     #region Helpers
 
+    /// <summary>
+    /// Performs the server-side duplicate-name check.
+    /// Remote validation can be bypassed by direct HTTP requests,
+    /// so server-side validation is also required.
+    /// </summary>
     private void ValidateUniqueName(VehicleCategoryFormViewModel model)
     {
-        if (!ModelState.IsValid) return;
+        if (!ModelState.IsValid)
+        {
+            return;
+        }
 
-        if (_categoryService.IsVehicleCategoryNameExists(model.Name, model.IsEdit ? model.Id : null))
+        var excludeId = model.IsEdit ? model.Id : (int?)null;
+
+        if (_categoryService.IsVehicleCategoryNameExists(model.Name, excludeId))
+        {
             ModelState.AddModelError(nameof(model.Name), DuplicateNameMessage);
+        }
     }
 
-    private ActionResult CompleteSave(CategorySaveResult result, VehicleCategoryFormViewModel model, string action)
+    private ActionResult CompleteSave(
+        CategorySaveResult result,
+        VehicleCategoryFormViewModel model,
+        string action)
     {
         switch (result.Status)
         {
@@ -115,13 +200,20 @@ public class VehicleCategoryController : Controller
                 return NotFound();
 
             case CategorySaveStatus.InvalidRange:
-                ModelState.AddModelError(string.Empty, result.Error!);
-                return View("Form", model);
+                ModelState.AddModelError(
+                    string.Empty,
+                    result.Error ?? "The category configuration is invalid.");
+
+                return View(FormView, model);
 
             default:
-                TempData[SuccessKey] = $"Vehicle category '{model.Name}' was {action}. Existing vehicles were re-categorised.";
+                TempData[SuccessKey] =
+                    $"Vehicle category '{model.Name}' was {action}. " +
+                    "Existing vehicles were re-categorised.";
+
                 return RedirectToAction(nameof(Index));
         }
     }
+
     #endregion
 }

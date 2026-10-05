@@ -37,7 +37,7 @@ public class ManufacturerRepository : IManufacturerRepository
            .FirstOrDefault(m => m.Id == id && !m.IsDeleted);
 
     public Manufacturer? GetManufacturersById(int id) =>
-        _context.Manufacturers .AsNoTracking().FirstOrDefault(m => m.Id == id && !m.IsDeleted);
+        _context.Manufacturers.AsNoTracking().FirstOrDefault(m => m.Id == id && !m.IsDeleted);
 
     public bool IsManufacturersNameExists(string name, int? excludeId = null)
     {

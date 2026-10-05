@@ -105,7 +105,7 @@ public class ManufacturerService : IManufacturerService
         var entity =  _manufacturerRepository.GetManufacturersById(id);
         if (entity is null) return DeleteResult.NotFound;
         if (entity.IsDefault) return DeleteResult.IsDefault;
-        if (entity.Vehicles.Any(v => v.ManufacturerId == id)) return DeleteResult.HasVehicles;
+        if (_manufacturerRepository.IsManufacturersHasVehicles(id)) return DeleteResult.HasVehicles;
         entity.IsDeleted = true;
         entity.UpdatedAt = DateTime.UtcNow;
         _manufacturerRepository.Update(entity);

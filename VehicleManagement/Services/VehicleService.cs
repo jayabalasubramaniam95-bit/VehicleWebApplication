@@ -37,17 +37,19 @@ public class VehicleService : IVehicleService
 
     #region List (Search, Paging)
 
-    public VehicleListViewModel GetVehicles(string? search, int page, int pageSize)
+    public VehicleListViewModel GetVehicles(string? search, int page, int pageSize, string sortColumn, string sortDirection)
     {
         if (pageSize <= 0) pageSize = DefaultPageSize;
         search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        sortColumn = string.IsNullOrWhiteSpace(sortColumn) ? "owner" : sortColumn.Trim().ToLowerInvariant();
+        sortDirection = string.Equals(sortDirection, "desc", StringComparison.OrdinalIgnoreCase)? "desc": "asc";
 
         var totalItems = _vehicleRepository.GetVehicleCount(search);
         var totalPages = Math.Max(1, (int)Math.Ceiling(totalItems / (double)pageSize));
         page = Math.Clamp(page, 1, totalPages);
 
         var items = _vehicleRepository
-            .GetPageWiseVehicleDetails(search, page, pageSize)
+            .GetPageWiseVehicleDetails(search, page, pageSize, sortColumn,sortDirection)
             .Select(v => new VehicleListItemViewModel
             {
                 Id = v.Id,
@@ -66,7 +68,9 @@ public class VehicleService : IVehicleService
             Search = search,
             CurrentPage = page,
             PageSize = pageSize,
-            TotalItems = totalItems
+            TotalItems = totalItems,
+            SortColumn = sortColumn,
+            SortDirection = sortDirection
         };
     }
 

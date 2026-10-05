@@ -38,26 +38,59 @@ public class VehicleRepository : IVehicleRepository
             .Include(v => v.Category)
             .FirstOrDefault(v => v.Id == id);
 
-    public List<VehicleSummary> GetPageWiseVehicleDetails(string? search, int pageNumber, int pageSize)
+    public List<VehicleSummary> GetPageWiseVehicleDetails(string? search, int pageNumber, int pageSize, string sortColumn, string sortDirection)
     {
         pageNumber = Math.Max(pageNumber, 1);
         pageSize = Math.Max(pageSize, 1);
 
-        return ApplySearch(Active, search)
-            .AsNoTracking()
-            .OrderBy(v => v.OwnerName)
-            .ThenBy(v => v.Id)                      // stable order so paging never repeats or skips rows
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .Select(v => new VehicleSummary(
-                v.Id,
-                v.OwnerName,
-                v.Manufacturer.Name,
-                v.YearOfManufacture,
-                v.Weight,
-                v.Category != null ? v.Category.Name : null,
-                v.Category != null ? v.Category.Icon : null))
-            .ToList();
+         var query = ApplySearch(Active, search)
+        .AsNoTracking();
+
+        var isDescending =
+            string.Equals(
+                sortDirection,
+                "desc",
+                StringComparison.OrdinalIgnoreCase);
+        query = sortColumn.ToLowerInvariant() switch
+        {
+            "manufacturer" => isDescending
+                ? query.OrderByDescending(v => v.Manufacturer.Name)
+                    .ThenByDescending(v => v.Id)
+                : query.OrderBy(v => v.Manufacturer.Name)
+                    .ThenBy(v => v.Id),
+
+            "year" => isDescending
+                ? query.OrderByDescending(v => v.YearOfManufacture)
+                    .ThenByDescending(v => v.Id)
+                : query.OrderBy(v => v.YearOfManufacture)
+                    .ThenBy(v => v.Id),
+
+            "weight" => isDescending
+                ? query.OrderByDescending(v => v.Weight)
+                    .ThenByDescending(v => v.Id)
+                : query.OrderBy(v => v.Weight)
+                    .ThenBy(v => v.Id),
+
+                // Default = Owner
+                _ => isDescending
+                    ? query.OrderByDescending(v => v.OwnerName)
+                        .ThenByDescending(v => v.Id)
+                    : query.OrderBy(v => v.OwnerName)
+                        .ThenBy(v => v.Id)
+        }; 
+
+         return query
+        .Skip((pageNumber - 1) * pageSize)
+        .Take(pageSize)
+        .Select(v => new VehicleSummary(
+            v.Id,
+            v.OwnerName,
+            v.Manufacturer.Name,
+            v.YearOfManufacture,
+            v.Weight,
+            v.Category != null ? v.Category.Name : null,
+            v.Category != null ? v.Category.Icon : null))
+        .ToList();
     }
 
     // Uses the same base query as GetPaged, so the count always matches the rows
@@ -95,6 +128,7 @@ public class VehicleRepository : IVehicleRepository
         if (string.IsNullOrWhiteSpace(search)) return query;
 
         var term = search.Trim();
+        query = query.Where(x => !x.IsDeleted && !x.Manufacturer.IsDeleted && !x.Category.IsDeleted);
 
         return query.Where(v =>
             v.OwnerName.Contains(term) ||

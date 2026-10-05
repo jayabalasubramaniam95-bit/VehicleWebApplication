@@ -28,8 +28,8 @@ public class VehiclesController : Controller
     #region List (Index)
 
     [HttpGet]
-    public ActionResult Index(string? search, int page = 1) =>
-        View(_vehicleService.GetVehicles(search, page, PageSize));
+    public ActionResult Index(string? search, int page = 1, string sortColumn = "owner", string sortDirection = "asc") =>
+        View(_vehicleService.GetVehicles(search, page, PageSize, sortColumn, sortDirection));
 
     #endregion
 

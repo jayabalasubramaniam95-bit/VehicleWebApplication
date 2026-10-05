@@ -14,7 +14,6 @@ public abstract class IntegrationTestBase : IAsyncLifetime
     public async Task DisposeAsync()
     {
         Scope.Dispose();
-
         await Factory.DisposeAsync();
     }
 }

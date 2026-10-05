@@ -6,7 +6,7 @@ public interface IVehicleService
 {
     #region List (Search, Paging)
 
-    VehicleListViewModel GetVehicles(string? search, int page, int pageSize);
+    VehicleListViewModel GetVehicles(string? search, int page, int pageSize, string sortColumn, string sortDirection);
 
     #endregion
 

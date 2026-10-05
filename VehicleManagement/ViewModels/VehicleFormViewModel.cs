@@ -31,8 +31,10 @@ public class VehicleFormViewModel : IValidatableObject
     [Display(Name = "Manufacturer")]
     public int? ManufacturerId { get; set; }
 
+
+
     [Required(ErrorMessage = "{0} is required.")]
-    [Range(MinYear, 2100, ErrorMessage = "{0} must be between {1} and {2}.")]
+    [Range(MinYear, 2026, ErrorMessage = "{0} must be between {1} and {2}.")]
     [Display(Name = "Year of Manufacture")]
     public int? YearOfManufacture { get; set; }
 

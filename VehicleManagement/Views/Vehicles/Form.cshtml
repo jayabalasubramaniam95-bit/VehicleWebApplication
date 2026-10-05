@@ -22,30 +22,30 @@
             <div asp-validation-summary="ModelOnly" class="validation-summary text-danger"></div>
 
             <div class="form-group">
-                <label asp-for="OwnerName" class="form-label"></label>
-                <input asp-for="OwnerName" class="form-control" placeholder="Enter owner name"
+                <label asp-for="OwnerName"  style=" width: 50%;" class="form-label"></label>
+                <input asp-for="OwnerName"  style=" width: 50%;"class="form-control" placeholder="Enter owner name"
                        autocomplete="off" autofocus
                        maxlength="@VehicleManagement.ViewModels.VehicleFormViewModel.OwnerNameMaxLength" />
                 <span asp-validation-for="OwnerName" class="text-danger"></span>
             </div>
 
             <div class="form-group">
-                <label asp-for="ManufacturerId" class="form-label"></label>
-                <select asp-for="ManufacturerId" asp-items="Model.Manufacturers" class="form-control">
+                <label asp-for="ManufacturerId"  style=" width: 50%;" class="form-label"></label>
+                <select asp-for="ManufacturerId" asp-items="Model.Manufacturers"  style=" width: 50%;" class="form-control">
                     <option value="">-- Select Manufacturer --</option>
                 </select>
                 <span asp-validation-for="ManufacturerId" class="text-danger"></span>
             </div>
 
             <div class="form-group">
-                <label asp-for="YearOfManufacture" class="form-label"></label>
-                <input asp-for="YearOfManufacture" type="number" class="form-control" placeholder="e.g. 2020" />
+                <label asp-for="YearOfManufacture"  style=" width: 50%;" class="form-label"></label>
+                <input asp-for="YearOfManufacture" type="number"  style=" width: 50%;" class="form-control" placeholder="e.g. 2020" />
                 <span asp-validation-for="YearOfManufacture" class="text-danger"></span>
             </div>
 
             <div class="form-group">
-                <label asp-for="Weight" class="form-label"></label>
-                <input asp-for="Weight" type="number" step="0.01" min="0.01" class="form-control"
+                <label asp-for="Weight"  style=" width: 50%;"class="form-label"></label>
+                <input asp-for="Weight" type="number" step="0.01" min="0.01"  style=" width: 50%;" class="form-control"
                        placeholder="e.g. 1850.75" />
                 <span asp-validation-for="Weight" class="text-danger"></span>
                 <small class="form-text text-muted" style="color:red">

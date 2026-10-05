@@ -19,6 +19,8 @@ public class VehicleListViewModel
     public bool HasNext => CurrentPage < TotalPages;
     public int FirstItem => TotalItems == 0 ? 0 : (CurrentPage - 1) * PageSize + 1;
     public int LastItem => Math.Min(CurrentPage * PageSize, TotalItems);
+    public string SortColumn { get; set; } = "owner";
+    public string SortDirection { get; set; } = "asc";
 }
 
 public class VehicleListItemViewModel

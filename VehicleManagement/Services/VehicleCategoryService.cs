@@ -76,7 +76,7 @@ public class VehicleCategoryService : IVehicleCategoryService
             UpdatedAt = DateTime.UtcNow
         };
 
-        var error = ValidateRanges(categories);
+        var error = ValidateRanges(categories, candidate);
         if (error is not null) return CategorySaveResult.InvalidRange(error);
 
         _categoryRepository.InTransaction(() =>
@@ -108,7 +108,7 @@ public class VehicleCategoryService : IVehicleCategoryService
         category.MaxWeight = model.MaxWeight;
         category.UpdatedAt = now;
 
-        var error = ValidateRanges(categories);
+        var error = ValidateRanges(categories, category);
         if (error is not null) return CategorySaveResult.InvalidRange(error);
 
         _categoryRepository.InTransaction(() =>
@@ -193,8 +193,14 @@ public class VehicleCategoryService : IVehicleCategoryService
         VehicleCategory? newCategory = null)
     {
         // ───────────── Create only: for new category ─────────────
-        if (newCategory is not null)
+        if (newCategory is not null && newCategory.Id == 0)
         {
+
+             // e.g. Min 0, Max null -> "Min and max is nothing"
+            if ((newCategory.MaxWeight is null || newCategory.MaxWeight == 0m ) &&  newCategory.MinWeight == 0m)
+                return $"'{newCategory.Name}' must have at least a minimum or maximum weight.";
+
+
             // e.g. Min 3000, Max 2000 -> "Max must be greater than Min"
             if (newCategory.MaxWeight is { } newMax && newMax <= newCategory.MinWeight)
                 return $"'{newCategory.Name}' must have a maximum weight greater than its minimum weight.";

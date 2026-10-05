@@ -15,13 +15,12 @@ public interface IVehicleRepository
 {
     #region Queries
 
+    List<VehicleSummary> GetPageWiseVehicleDetails(string? search, int pageNumber, int pageSize, string sortColumn, string sortDirection);
     List<Vehicle> GetAllVehicles();
 
     Vehicle? GetVehicleById(int id);
 
     Vehicle? GetVehicleDetailsById(int id);
-
-    List<VehicleSummary> GetPageWiseVehicleDetails(string? search, int pageNumber, int pageSize);
 
     int GetVehicleCount(string? search);
 

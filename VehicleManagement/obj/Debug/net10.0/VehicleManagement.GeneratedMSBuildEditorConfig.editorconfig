@@ -20,73 +20,73 @@ build_property.TargetFrameworkVersion = v10.0
 build_property.EntryPointFilePath = 
 build_property.RootNamespace = VehicleManagement
 build_property.RootNamespace = VehicleManagement
-build_property.ProjectDir = D:\WebApp\VehicleManagement\Vehiclemanagement\
+build_property.ProjectDir = D:\WebApp\VehicleManagement\vehiclemanagement\
 build_property.EnableComHosting = 
 build_property.EnableGeneratedComInterfaceComImportInterop = 
 build_property.RazorLangVersion = 10.0
 build_property.SupportLocalizedComponentNames = 
 build_property.GenerateRazorMetadataSourceChecksumAttributes = 
-build_property.MSBuildProjectDirectory = D:\WebApp\VehicleManagement\Vehiclemanagement
+build_property.MSBuildProjectDirectory = D:\WebApp\VehicleManagement\vehiclemanagement
 build_property._RazorSourceGeneratorDebug = 
 build_property.EffectiveAnalysisLevelStyle = 10.0
 build_property.EnableCodeStyleSeverity = 
 
-[D:/WebApp/VehicleManagement/Vehiclemanagement/Views/Home/Index.cshtml]
+[D:/WebApp/VehicleManagement/vehiclemanagement/Views/Home/Index.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcSG9tZVxJbmRleC5jc2h0bWw=
 build_metadata.AdditionalFiles.CssScope = 
 
-[D:/WebApp/VehicleManagement/Vehiclemanagement/Views/Home/Privacy.cshtml]
+[D:/WebApp/VehicleManagement/vehiclemanagement/Views/Home/Privacy.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcSG9tZVxQcml2YWN5LmNzaHRtbA==
 build_metadata.AdditionalFiles.CssScope = 
 
-[D:/WebApp/VehicleManagement/Vehiclemanagement/Views/Manufacturers/Details.cshtml]
+[D:/WebApp/VehicleManagement/vehiclemanagement/Views/Manufacturers/Details.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcTWFudWZhY3R1cmVyc1xEZXRhaWxzLmNzaHRtbA==
 build_metadata.AdditionalFiles.CssScope = 
 
-[D:/WebApp/VehicleManagement/Vehiclemanagement/Views/Manufacturers/Form.cshtml]
+[D:/WebApp/VehicleManagement/vehiclemanagement/Views/Manufacturers/Form.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcTWFudWZhY3R1cmVyc1xGb3JtLmNzaHRtbA==
 build_metadata.AdditionalFiles.CssScope = 
 
-[D:/WebApp/VehicleManagement/Vehiclemanagement/Views/Manufacturers/Index.cshtml]
+[D:/WebApp/VehicleManagement/vehiclemanagement/Views/Manufacturers/Index.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcTWFudWZhY3R1cmVyc1xJbmRleC5jc2h0bWw=
 build_metadata.AdditionalFiles.CssScope = 
 
-[D:/WebApp/VehicleManagement/Vehiclemanagement/Views/Shared/Error.cshtml]
+[D:/WebApp/VehicleManagement/vehiclemanagement/Views/Shared/Error.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcU2hhcmVkXEVycm9yLmNzaHRtbA==
 build_metadata.AdditionalFiles.CssScope = 
 
-[D:/WebApp/VehicleManagement/Vehiclemanagement/Views/Shared/_ValidationScriptsPartial.cshtml]
+[D:/WebApp/VehicleManagement/vehiclemanagement/Views/Shared/_ValidationScriptsPartial.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcU2hhcmVkXF9WYWxpZGF0aW9uU2NyaXB0c1BhcnRpYWwuY3NodG1s
 build_metadata.AdditionalFiles.CssScope = 
 
-[D:/WebApp/VehicleManagement/Vehiclemanagement/Views/VehicleCategory/Form.cshtml]
+[D:/WebApp/VehicleManagement/vehiclemanagement/Views/VehicleCategory/Form.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcVmVoaWNsZUNhdGVnb3J5XEZvcm0uY3NodG1s
 build_metadata.AdditionalFiles.CssScope = 
 
-[D:/WebApp/VehicleManagement/Vehiclemanagement/Views/VehicleCategory/Index.cshtml]
+[D:/WebApp/VehicleManagement/vehiclemanagement/Views/VehicleCategory/Index.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcVmVoaWNsZUNhdGVnb3J5XEluZGV4LmNzaHRtbA==
 build_metadata.AdditionalFiles.CssScope = 
 
-[D:/WebApp/VehicleManagement/Vehiclemanagement/Views/Vehicles/Details.cshtml]
+[D:/WebApp/VehicleManagement/vehiclemanagement/Views/Vehicles/Details.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcVmVoaWNsZXNcRGV0YWlscy5jc2h0bWw=
 build_metadata.AdditionalFiles.CssScope = 
 
-[D:/WebApp/VehicleManagement/Vehiclemanagement/Views/Vehicles/Form.cshtml]
+[D:/WebApp/VehicleManagement/vehiclemanagement/Views/Vehicles/Form.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcVmVoaWNsZXNcRm9ybS5jc2h0bWw=
 build_metadata.AdditionalFiles.CssScope = 
 
-[D:/WebApp/VehicleManagement/Vehiclemanagement/Views/Vehicles/Index.cshtml]
+[D:/WebApp/VehicleManagement/vehiclemanagement/Views/Vehicles/Index.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcVmVoaWNsZXNcSW5kZXguY3NodG1s
 build_metadata.AdditionalFiles.CssScope = 
 
-[D:/WebApp/VehicleManagement/Vehiclemanagement/Views/_ViewImports.cshtml]
+[D:/WebApp/VehicleManagement/vehiclemanagement/Views/_ViewImports.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcX1ZpZXdJbXBvcnRzLmNzaHRtbA==
 build_metadata.AdditionalFiles.CssScope = 
 
-[D:/WebApp/VehicleManagement/Vehiclemanagement/Views/_ViewStart.cshtml]
+[D:/WebApp/VehicleManagement/vehiclemanagement/Views/_ViewStart.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcX1ZpZXdTdGFydC5jc2h0bWw=
 build_metadata.AdditionalFiles.CssScope = 
 
-[D:/WebApp/VehicleManagement/Vehiclemanagement/Views/Shared/_Layout.cshtml]
+[D:/WebApp/VehicleManagement/vehiclemanagement/Views/Shared/_Layout.cshtml]
 build_metadata.AdditionalFiles.TargetPath = Vmlld3NcU2hhcmVkXF9MYXlvdXQuY3NodG1s
 build_metadata.AdditionalFiles.CssScope = b-fe1dddhvzd

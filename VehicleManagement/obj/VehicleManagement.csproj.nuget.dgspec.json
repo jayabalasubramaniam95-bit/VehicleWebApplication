@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\WebApp\\VehicleManagement\\VehicleManagement\\VehicleManagement.csproj": {}
+    "D:\\WebApp\\VehicleManagement\\Vehiclemanagement\\VehicleManagement.csproj": {}
   },
   "projects": {
-    "D:\\WebApp\\VehicleManagement\\VehicleManagement\\VehicleManagement.csproj": {
+    "D:\\WebApp\\VehicleManagement\\Vehiclemanagement\\VehicleManagement.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\WebApp\\VehicleManagement\\VehicleManagement\\VehicleManagement.csproj",
+        "projectUniqueName": "D:\\WebApp\\VehicleManagement\\Vehiclemanagement\\VehicleManagement.csproj",
         "projectName": "VehicleManagement",
-        "projectPath": "D:\\WebApp\\VehicleManagement\\VehicleManagement\\VehicleManagement.csproj",
+        "projectPath": "D:\\WebApp\\VehicleManagement\\Vehiclemanagement\\VehicleManagement.csproj",
         "packagesPath": "C:\\Users\\Admin\\.nuget\\packages\\",
-        "outputPath": "D:\\WebApp\\VehicleManagement\\VehicleManagement\\obj\\",
+        "outputPath": "D:\\WebApp\\VehicleManagement\\Vehiclemanagement\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\Admin\\AppData\\Roaming\\NuGet\\NuGet.Config"

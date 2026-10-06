@@ -10,6 +10,18 @@
         ("ErrorMessage", "danger")
     };
 }
+<style>
+/* before */
+.col-weight { visibility: hidden; }
+
+/* after */
+.col-weight { display: none; }
+
+.table th:nth-child(4),
+.table td:nth-child(4) {
+    display: none;
+}
+</style>
 
 <div class="page-container">
 
@@ -105,6 +117,7 @@
                             <th>Owner</th>
                             <th>Manufacturer</th>
                             <th>Year</th>
+                            <th class="col-weight">Weight</th>
                             <th>Category</th>
                             <th class="actions-column">Actions</th>
                         </tr>
@@ -126,6 +139,9 @@
 
                                 <td data-sort-value="@vehicle.YearOfManufacture">
                                     @vehicle.YearOfManufacture
+                                </td>
+                                <td  class="col-weight" data-sort-value="@vehicle.Weight">
+                                    @vehicle.Weight kg
                                 </td>
 
                                 <td data-sort-value="@vehicle.CategoryName">

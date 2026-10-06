@@ -5,6 +5,18 @@
     ViewData["Title"] = "Manufacturer Details";
     var initial = string.IsNullOrWhiteSpace(Model.Name) ? "?" : Model.Name.Trim()[0].ToString().ToUpper();
 }
+    <style>
+    /* before */
+    .col-weight { visibility: hidden; }
+
+    /* after */
+    .col-weight { display: none; }
+
+    .table th:nth-child(3),
+    .table td:nth-child(3) {
+        display: none;
+    }
+    </style>
 
 <div class="page-container">
 
@@ -72,7 +84,7 @@
                         <tr>
                             <th>@Html.DisplayNameFor(m => m.Vehicles.First().OwnerName)</th>
                             <th>@Html.DisplayNameFor(m => m.Vehicles.First().YearOfManufacture)</th>
-                            <th>@Html.DisplayNameFor(m => m.Vehicles.First().Weight)</th>
+                            <th class="col-weight">@Html.DisplayNameFor(m => m.Vehicles.First().Weight)</th>
                             <th>Category</th>
                             <th>Actions</th>
                         </tr>
@@ -84,7 +96,7 @@
                             <tr>
                                 <td><strong>@vehicle.OwnerName</strong></td>
                                 <td>@vehicle.YearOfManufacture</td>
-                                <td>@vehicle.Weight.ToString("0.00") kg</td>
+                                <td class="col-weight">@vehicle.Weight.ToString("0.00") kg</td>
                                 <td>
                                     <i class="bi @VehicleCategoryIcons.GetCssClass(vehicle.CategoryIcon) me-2" aria-hidden="true"></i>
                                     <span class="badge-category">@vehicle.CategoryName</span></td>

@@ -67,7 +67,7 @@ public class VehicleCategoryService : IVehicleCategoryService
     {
         var categories = _categoryRepository.GetAllVehicleCategory();
 
-        var candidate = new VehicleCategory
+        var newCategory = new VehicleCategory
         {
             Name = model.Name,
             Icon = model.Icon,
@@ -75,13 +75,14 @@ public class VehicleCategoryService : IVehicleCategoryService
             MaxWeight = model.MaxWeight,
             UpdatedAt = DateTime.UtcNow
         };
+        categories.Add(newCategory);
 
-        var error = ValidateRanges(categories, candidate);
+        var error = ValidateRanges(categories);
         if (error is not null) return CategorySaveResult.InvalidRange(error);
 
         _categoryRepository.InTransaction(() =>
         {
-            _categoryRepository.Add(candidate);
+            _categoryRepository.Add(newCategory);
             RecategoriseVehicles(categories);
         });
 
@@ -94,8 +95,7 @@ public class VehicleCategoryService : IVehicleCategoryService
 
     public CategorySaveResult Update(VehicleCategoryFormViewModel model)
     {
-        var categories = _categoryRepository
-                                                .GetAllVehicleCategory()
+        var categories = (_categoryRepository.GetAllVehicleCategory() ?? Enumerable.Empty<VehicleCategory>())
                                                 .Where(c => !c.IsDeleted)
                                                 .OrderBy(c => c.MinWeight)
                                                 .ToList();
@@ -113,32 +113,12 @@ public class VehicleCategoryService : IVehicleCategoryService
         {
             return CategorySaveResult.InvalidRange("A category with this name already exists.");
         }
-        var oldMax = category.MaxWeight;
-
         // Apply the requested changes first.
         category.Name = model.Name;
         category.MinWeight = model.MinWeight;
         category.MaxWeight = model.MaxWeight;
         category.Icon = model.Icon;
         category.UpdatedAt = DateTime.UtcNow;
-
-        // If the edited category's maximum boundary changes,
-        // move the next category's minimum boundary with it.
-        if (oldMax is not null &&
-            model.MaxWeight is { } newMax &&
-            newMax != oldMax)
-        {
-            var next = categories
-                .Where(c => c.Id != category.Id)
-                .OrderBy(c => c.MinWeight)
-                .FirstOrDefault(c => c.MinWeight == oldMax);
-
-            if (next is not null)
-            {
-                next.MinWeight = newMax;
-                next.UpdatedAt = DateTime.UtcNow;
-            }
-        }
 
         // Validate the FINAL configuration.
         var validationError = ValidateRanges(categories);
@@ -169,7 +149,7 @@ public class VehicleCategoryService : IVehicleCategoryService
 
     public CategoryDeleteResult Delete(int id)
     {
-        var categories = _categoryRepository.GetAllVehicleCategory();
+        var categories = _categoryRepository.GetAllVehicleCategory() ;
         var category = categories.FirstOrDefault(c => c.Id == id);
 
         if (category is null) return CategoryDeleteResult.NotFound;
@@ -229,47 +209,19 @@ public class VehicleCategoryService : IVehicleCategoryService
         : $"{c.MinWeight:0.##} kg and above";
 
     /// <summary>
-    /// Validates the category ranges. When <paramref name="newCategory"/> is supplied (Create),
-    /// it first takes its range from an existing category and is added to <paramref name="categories"/>.
+    /// Validates the full set of category ranges (Create and Update).
+    /// On Create, the new, unsaved category (Id == 0) is checked first.
     /// Returns an error message, or null when valid.
     /// </summary>
-    private string? ValidateRanges(IList<VehicleCategory> categories,
-        VehicleCategory? newCategory = null)
+    private string? ValidateRanges(IList<VehicleCategory> categories)
     {
+       var newCategory = categories.FirstOrDefault(c => c.Id == 0);
         // ───────────── Create only: for new category ─────────────
-        if (newCategory is not null && newCategory.Id == 0)
+        if (newCategory is not null)
         {
-
-             // e.g. Min 0, Max null -> "Min and max is nothing"
-            if ((newCategory.MaxWeight is null || newCategory.MaxWeight == 0m ) &&  newCategory.MinWeight == 0m)
-                return $"'{newCategory.Name}' must have at least a minimum or maximum weight.";
-
-
-            // e.g. Min 3000, Max 2000 -> "Max must be greater than Min"
-            if (newCategory.MaxWeight is { } newMax && newMax <= newCategory.MinWeight)
-                return $"'{newCategory.Name}' must have a maximum weight greater than its minimum weight.";
-
-            var ordered = categories.OrderBy(c => c.MinWeight).ToList();
-            var highest = ordered.LastOrDefault();
-
-            // e.g. highest is 2500–3000, new is 3000–5000 -> continues after it, nothing to shrink
-            var continuesAfterHighest = highest?.MaxWeight is { } highestMax
-                                        && newCategory.MinWeight == highestMax;
-
-            if (!continuesAfterHighest)
-            {
-                // e.g. host 2500–∞, new 2500–3000 -> new range sits inside the host
-                var host = ordered.FirstOrDefault(c =>
-                    newCategory.MinWeight >= c.MinWeight &&
-                    UpperBound(newCategory) <= UpperBound(c));
-
-                // e.g. host 0–1000, new 0–1000 -> duplicate range or host 0–1000, new 0–400 
-                if (host is null)
-                    return $"'{newCategory.Name}' would overlap with an existing category.";
-            }
-            categories.Add(newCategory);
+            var newCategoryError = ValidateNewCategory(newCategory, categories);
+            if (newCategoryError is not null) return newCategoryError;
         }
-
         // ───────────── Create & Update: validate ─────────────
         var sorted = categories.OrderBy(c => c.MinWeight).ToList();
 
@@ -310,13 +262,47 @@ public class VehicleCategoryService : IVehicleCategoryService
                 return $"Overlap between {next.MinWeight:0.##}–{currentMax:0.##} kg is not allowed.";
 
         }
-        // e.g vehicle weight 3500, vategory range (2500–∞). 
-        // suddenly the category is changed to 2500 - 3000, 
-        // leaving the vehicle without a category.
-        var vehicles = _vehicleRepository.GetAllVehicles();
-        if (vehicles.Any(v => FindCategory(sorted, v.Weight) is null))
-            return "Some vehicles would not fit into any category. Adjust the ranges.";
-        return null;
+       // e.g. a vehicle weighs 3500 kg and its category is 2500–∞.
+       // If that category is changed to 2500–3000, the vehicle is left without a category.
+        var hasUncategorisedVehicle = _vehicleRepository
+            .GetAllVehicles()
+            .Any(v => FindCategory(sorted, v.Weight) is null);
+ 
+        return hasUncategorisedVehicle
+            ? "Some vehicles would not fit into any category. Adjust the ranges."
+            : null;
+    }
+
+    private static string? ValidateNewCategory(
+        VehicleCategory newCategory,
+        IEnumerable<VehicleCategory> categories)
+    {
+        // e.g. Min 0, Max null -> no minimum or maximum weight at all
+        if ((newCategory.MaxWeight is null || newCategory.MaxWeight == 0m) && newCategory.MinWeight == 0m)
+            return $"'{newCategory.Name}' must have at least a minimum or maximum weight.";
+ 
+        // e.g. Min 3000, Max 2000 -> max must be greater than min
+        if (newCategory.MaxWeight is { } newMax && newMax <= newCategory.MinWeight)
+            return $"'{newCategory.Name}' must have a maximum weight greater than its minimum weight.";
+ 
+        var ordered = categories.OrderBy(c => c.MinWeight).ToList();
+        var highest = ordered.LastOrDefault();
+ 
+        // e.g. highest is 2500–3000, new is 3000–5000 -> continues after it, nothing to shrink
+        var continuesAfterHighest = highest?.MaxWeight is { } highestMax
+                                    && newCategory.MinWeight == highestMax;
+ 
+        if (continuesAfterHighest) return null;
+ 
+        // e.g. host 2500–∞, new 2500–3000 -> the new range sits inside the host
+        var host = ordered.FirstOrDefault(c =>
+            newCategory.MinWeight >= c.MinWeight &&
+            UpperBound(newCategory) <= UpperBound(c));
+ 
+        // e.g. host 0–1000, new 0–1000 (duplicate) or new 0–400 -> overlaps an existing category
+        return host is null
+            ? $"'{newCategory.Name}' would overlap with an existing category."
+            : null;
     }
 
     #endregion

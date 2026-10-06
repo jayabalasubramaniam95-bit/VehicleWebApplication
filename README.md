@@ -60,7 +60,7 @@ The main application uses SQL Server through Entity Framework Core.
 
 The default development connection string is configured in:
 
-text
+
 VehicleManagement/appsettings.json
 
 
@@ -116,7 +116,7 @@ dotnet ef database update
 
 The migrations are stored under:
 
-text
+
 VehicleManagement/Migrations
 
 
@@ -174,7 +174,7 @@ The application uses the normal ASP.NET Core MVC routing configuration, with the
 
 The application follows a layered architecture:
 
-text
+
 Razor Views
      ↓
 Controllers
@@ -194,7 +194,7 @@ Controllers handle HTTP requests and coordinate the UI flow.
 
 The main controllers are:
 
-text
+
 VehiclesController
 ManufacturersController
 VehicleCategoryController
@@ -208,7 +208,7 @@ Services contain the main application/business logic.
 
 Examples include:
 
-text
+
 VehicleService
 ManufacturerService
 VehicleCategoryService
@@ -242,7 +242,7 @@ This avoids relying on loosely typed `ViewBag` or magic strings for the main app
 
 The main entities are:
 
-text
+
 Manufacturer
 Vehicle
 VehicleCategory
@@ -312,7 +312,7 @@ Vehicle categories are determined from the vehicle weight.
 
 The application uses the following rule:
 
-text
+
 MinWeight <= VehicleWeight < MaxWeight
 
 
@@ -320,7 +320,7 @@ For a category without a maximum weight, the range continues indefinitely.
 
 For example:
 
-text
+
 Light   0 <= weight < 500
 Medium  500 <= weight < 2500
 Heavy   2500 <= weight
@@ -328,7 +328,7 @@ Heavy   2500 <= weight
 
 Therefore:
 
-text
+
 499.99 kg -> Light
 500 kg    -> Medium
 2499.99   -> Medium
@@ -350,14 +350,14 @@ The application prevents:
 
 For example:
 
-text
+
 Light   0 - 500
 Medium  600 - 2500
 
 
 is invalid because the range:
 
-text
+
 500 - 600
 
 
@@ -367,14 +367,14 @@ is not covered.
 
 For example:
 
-text
+
 Light   0 - 600
 Medium  500 - 2500
 
 
 is invalid because:
 
-text
+
 500 - 600
 
 
@@ -384,7 +384,7 @@ belongs to two categories.
 
 A category such as:
 
-text
+
 3000 - 2000
 
 
@@ -396,7 +396,7 @@ A category with the same minimum and maximum is also rejected.
 
 The first category must start at:
 
-text
+
 0 kg
 
 
@@ -416,7 +416,7 @@ For example:
 
 ### Before
 
-text
+
 Light   0 - 500
 Medium  500 - 2500
 Heavy   2500+
@@ -424,25 +424,25 @@ Heavy   2500+
 
 A vehicle weighing:
 
-text
+
 2700 kg
 
 
 belongs to:
 
-text
+
 Heavy
 
 
 If Medium is changed to:
 
-text
+
 500 - 3000
 
 
 the resulting configuration becomes:
 
-text
+
 Light   0 - 500
 Medium  500 - 3000
 Heavy   3000+
@@ -450,13 +450,13 @@ Heavy   3000+
 
 The existing 2700 kg vehicle is automatically changed from:
 
-text
+
 Heavy
 
 
 to:
 
-text
+
 Medium
 
 
@@ -464,7 +464,7 @@ This behaviour is covered by integration testing through the MVC HTTP request ra
 
 This is important because it verifies the complete application flow:
 
-text
+
 HTTP Request
     ↓
 Controller
@@ -524,7 +524,7 @@ Vehicles and manufacturers use soft deletion.
 
 Instead of physically removing a record, the application sets:
 
-text
+
 IsDeleted = true
 
 
@@ -559,7 +559,7 @@ Database update exceptions such as `DbUpdateException` are handled at the contro
 
 The application does not intentionally expose:
 
-text
+
 SQL statements
 DbUpdateException details
 SQLite exceptions
@@ -570,7 +570,7 @@ to normal users.
 
 For example, a database failure is presented as a general message such as:
 
-text
+
 The operation could not be completed. Please try again.
 
 
@@ -582,13 +582,13 @@ The purpose is to give the user useful feedback without exposing implementation 
 
 The solution contains a separate test project:
 
-text
+
 VehicleManagement.Tests
 
 
 The tests are divided into:
 
-text
+
 VehicleManagement.Tests
 │
 ├── Unit
@@ -609,7 +609,7 @@ Unit tests use mocks to test service behaviour in isolation.
 
 Integration tests use:
 
-text
+
 WebApplicationFactory
 HttpClient
 SQLite in-memory database
@@ -777,7 +777,7 @@ dotnet test
 
 The expected result is:
 
-text
+
 Build succeeded
 
 

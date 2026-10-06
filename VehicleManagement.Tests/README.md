@@ -12,7 +12,6 @@ The intention is not to test every small implementation detail. The tests focus 
 
 The test project uses two types of tests:
 
-```text
 Unit Tests
     ↓
 Business logic in isolation
@@ -30,7 +29,6 @@ Repository
 EF Core
     ↓
 SQLite Database
-```
 
 ## Unit Tests
 
@@ -58,7 +56,7 @@ This allows the tests to verify that the different application layers work toget
 
 # 2. Test Project Structure
 
-```text
+
 VehicleManagement.Tests
 │
 ├── Unit
@@ -75,7 +73,7 @@ VehicleManagement.Tests
 │   └── ManufacturerIntegrationTests.cs
 │
 └── README.md
-```
+
 
 
 
@@ -121,20 +119,20 @@ The tests cover:
 
 For example, the boundary behaviour is based on:
 
-```text
+
 Light   0 <= weight < 500
 Medium  500 <= weight < 2500
 Heavy   2500 <= weight
-```
+
 
 Therefore:
 
-```text
+
 499.99 kg -> Light
 500 kg    -> Medium
 2499.99   -> Medium
 2500 kg   -> Heavy
-```
+
 
 The category service tests are particularly important because category configuration affects existing vehicle records.
 
@@ -162,7 +160,7 @@ The integration tests verify the application through the real MVC request pipeli
 
 The general flow is:
 
-```text
+
 xUnit
   ↓
 HttpClient
@@ -178,7 +176,7 @@ Repository
 Entity Framework Core
   ↓
 SQLite in-memory database
-```
+
 
 This gives better confidence than testing the controller or service alone.
 
@@ -264,7 +262,7 @@ Important scenarios include:
 
 One of the most important integration tests verifies the assignment requirement:
 
-```text
+
 Before:
 
 Light   0 - 500
@@ -273,33 +271,33 @@ Heavy   2500+
 
 Vehicle weight = 2700
 Vehicle category = Heavy
-```
+
 
 The test then updates Medium:
 
-```text
+
 Medium = 500 - 3000
-```
+
 
 The resulting configuration becomes:
 
-```text
+
 Light   0 - 500
 Medium  500 - 3000
 Heavy   3000+
-```
+
 
 The existing 2700 kg vehicle must then be assigned to:
 
-```text
+
 Medium
-```
+
 
 The test performs this through the HTTP/controller layer rather than directly calling:
 
-```csharp
+csharp
 VehicleCategoryService.Update(...)
-```
+
 
 This is intentional because it verifies the complete application flow.
 
@@ -311,16 +309,16 @@ Category boundaries are important because an incorrect `<` or `<=` comparison ca
 
 The application uses:
 
-```text
+
 MinWeight <= Weight < MaxWeight
-```
+
 
 For the default configuration:
 
-```text
+
 500 kg  -> Medium
 2500 kg -> Heavy
-```
+
 
 The integration tests verify these boundary values.
 
@@ -332,10 +330,10 @@ The category configuration must not contain gaps.
 
 For example:
 
-```text
+
 Light   0 - 500
 Medium  600 - 2500
-```
+
 
 is rejected.
 
@@ -343,10 +341,10 @@ The configuration must also not contain overlaps.
 
 For example:
 
-```text
+
 Light   0 - 600
 Medium  500 - 2500
-```
+
 
 is rejected.
 
@@ -394,37 +392,37 @@ Integration tests use `HttpClient`.
 
 For normal GET requests:
 
-```text
+
 200 OK
-```
+
 
 is expected when the requested page exists.
 
 For missing records:
 
-```text
+
 404 Not Found
-```
+
 
 is expected where appropriate.
 
 For successful form submissions:
 
-```text
+
 302 Redirect
-```
+
 
 is normally expected.
 
 Automatic redirects are disabled when the test needs to inspect the original response:
 
-```csharp
+csharp
 using var client = Factory.CreateClient(
     new WebApplicationFactoryClientOptions
     {
         AllowAutoRedirect = false
     });
-```
+
 
 
 
@@ -459,12 +457,12 @@ The application should return a useful user-facing error rather than exposing te
 
 The expected behaviour is to avoid exposing information such as:
 
-```text
+
 SQL statements
 DbUpdateException
 SQLite exceptions
 Stack traces
-```
+
 
 to normal users.
 
@@ -474,31 +472,31 @@ to normal users.
 
 From the solution root:
 
-```powershell
+powershell
 dotnet test
-```
+
 
 or:
 
-```powershell
+powershell
 dotnet test .\VehicleManagement.Tests\VehicleManagement.Tests.csproj
-```
+
 
 
 
 # 18. Running Unit Tests Only
 
-```powershell
+powershell
 dotnet test .\VehicleManagement.Tests\VehicleManagement.Tests.csproj --filter "FullyQualifiedName~Unit"
-```
+
 
 
 
 # 19. Running Integration Tests Only
 
-```powershell
+powershell
 dotnet test .\VehicleManagement.Tests\VehicleManagement.Tests.csproj --filter "FullyQualifiedName~Integration"
-```
+
 
 
 
@@ -506,27 +504,27 @@ dotnet test .\VehicleManagement.Tests\VehicleManagement.Tests.csproj --filter "F
 
 For vehicle integration tests:
 
-```powershell
+powershell
 dotnet test .\VehicleManagement.Tests\VehicleManagement.Tests.csproj --filter "FullyQualifiedName~VehicleIntegrationTests"
-```
+
 
 For vehicle category integration tests:
 
-```powershell
+powershell
 dotnet test .\VehicleManagement.Tests\VehicleManagement.Tests.csproj --filter "FullyQualifiedName~VehicleCategoryIntegrationTests"
-```
+
 
 For manufacturer integration tests:
 
-```powershell
+powershell
 dotnet test .\VehicleManagement.Tests\VehicleManagement.Tests.csproj --filter "FullyQualifiedName~ManufacturerIntegrationTests"
-```
+
 
 For a specific test:
 
-```powershell
+powershell
 dotnet test .\VehicleManagement.Tests\VehicleManagement.Tests.csproj --filter "FullyQualifiedName~UpdateCategory_WhenRangeChanges_RecategorisesExistingVehicles"
-```
+
 
 
 
@@ -534,9 +532,9 @@ dotnet test .\VehicleManagement.Tests\VehicleManagement.Tests.csproj --filter "F
 
 To see the available tests:
 
-```powershell
+powershell
 dotnet test .\VehicleManagement.Tests\VehicleManagement.Tests.csproj --list-tests
-```
+
 
 
 
@@ -550,7 +548,7 @@ Instead, they focus on behaviours where a defect could cause an incorrect result
 
 The highest priority areas are:
 
-```text
+
 Category calculation
 Category boundaries
 Range gaps
@@ -560,7 +558,7 @@ Vehicle validation
 Manufacturer validation
 Delete restrictions
 Missing records
-```
+
 
 This follows the assignment requirement to focus testing on meaningful behaviour.
 
@@ -601,23 +599,23 @@ The category re-categorisation scenario is intentionally tested as an integratio
 
 From the solution root I run:
 
-```powershell
+powershell
 dotnet restore
 dotnet build
 dotnet test
-```
+
 
 The expected result is:
 
-```text
+
 Build succeeded
-```
+
 
 and:
 
-```text
+
 Failed: 0
-```
+
 
 All tests should pass before submitting the assignment.
 
